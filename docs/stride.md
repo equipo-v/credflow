@@ -1,0 +1,15 @@
+# Modelo de amenazas STRIDE — CredFlow
+
+La amenaza principal es la propia extensión: ve credenciales y tiene acceso a todos los sitios.
+Regla de diseño: la capa de red (`webRequest`) es la evidencia autoritativa y la capa de página (mundo `MAIN`)
+es solo orientativa, porque el código de la página comparte ese contexto y puede manipularla.
+
+| # | Tipo | Activo | Amenaza | Control | Norma |
+| --- | --- | --- | --- | --- | --- |
+| 1 | S · Spoofing | Mensajes del content script `MAIN` hacia la extensión | Un script de la página falsifica eventos para generar alertas falsas o hacer pasar una exfiltración como un envío legítimo. | Los mensajes del mundo `MAIN` se validan contra un esquema estricto y nunca anulan un veredicto de la capa de red; solo la red confirma una exfiltración. | ASVS 4.0.3 — V5.1.3 |
+| 2 | T · Tampering | Interceptores de APIs en la página | Un script malicioso guarda referencias a las APIs nativas antes de la intercepción o las restaura para evadir la atribución. | Inyección en `document_start`; comprobación periódica de que los interceptores siguen activos; si la red detecta un flujo que la capa de página no reportó, se registra como posible evasión. | NIST SSDF — PW.1.1 |
+| 3 | R · Repudiation | Historial de eventos de auditoría | El usuario niega haber enviado credenciales a un sitio señalado, o un atacante local borra eventos para ocultar el incidente. | Log encadenado con SHA-256 (cada registro incluye el hash del anterior) y exportación con el hash del lote. | ASVS 4.0.3 — V7.3.3 |
+| 4 | I · Information disclosure | Valores sensibles y sus huellas | La extensión filtra las credenciales que vigila: por persistir huellas, escribirlas en logs, mostrarlas en el popup o enviarlas en reportes de error. | Huellas solo en memoria con caducidad de 30 s; logs con metadatos y sin valores; interfaz con el contenido enmascarado; ninguna conexión saliente. | ASVS 4.0.3 — V8.2.2 / V7.1.1 |
+| 5 | D · Denial of service | Service Worker y análisis de cuerpos | Una página genera muchas peticiones con cuerpos grandes para agotar el análisis y esconder la exfiltración entre el ruido. | El análisis solo se activa en la ventana de 30 s tras escribir en un campo sensible; las peticiones a terceros tienen prioridad; un volumen anómalo genera su propia alerta en lugar de descartar eventos. | ASVS 4.0.3 — V11.1.4 |
+| 6 | E · Elevation of privilege | Popup y páginas de la extensión | Un dominio o nombre de script manipulado ejecuta código al mostrarse en el popup y obtiene los privilegios `chrome.*` de la extensión. | Validación de dominios y URLs, inserción solo con `textContent` y CSP `script-src 'self'; object-src 'none'`. | ASVS 4.0.3 — V5.3.3 |
+| 7 | T · Tampering | Paquete distribuido de la extensión | Una dependencia o actualización comprometida convierte CredFlow en un ladrón de credenciales con acceso a todos los sitios. | Dependencias mínimas y fijadas, revisión de código por el responsable de seguridad antes de cada versión, sin código remoto y publicación firmada. | NIST SSDF — PW.4.1 / PS.2.1 |
