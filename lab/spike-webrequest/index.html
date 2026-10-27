@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>CredFlow Spike - Verificación WebRequest & Main World</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 2rem;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    h1 { color: #1e3a8a; }
+    .card {
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    button, input[type="submit"] {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover, input[type="submit"]:hover { background: #1d4ed8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem;
+      text-align: left;
+    }
+    th { background: #f1f5f9; }
+    .badge-success { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+    .badge-error { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+    pre { background: #0f172a; color: #f8fafc; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>CredFlow — Spike de Verificación Técnica</h1>
+  <p>Comprobación de <code>chrome.webRequest.onBeforeRequest</code> con <code>["requestBody"]</code> y sin <code>blocking</code>, y verificación de <code>world: "MAIN"</code>.</p>
+
+  <div class="card">
+    <h2>1. Verificación de Inyección en "world": "MAIN"</h2>
+    <div id="main-world-status">Comprobando inyección...</div>
+  </div>
+
+  <div class="card">
+    <h2>2. Formulario HTML (application/x-www-form-urlencoded)</h2>
+    <form id="form-test" action="/api/form-submit" method="POST" target="dummy-frame">
+      <label>Usuario: <input type="text" name="username" value="usuario_ficticio_42" /></label>
+      <label>Contraseña: <input type="password" name="password" value="ClaveFicticia!2026#" /></label>
+      <input type="submit" id="btn-submit-form" value="Enviar Formulario" />
+    </form>
+    <iframe name="dummy-frame" style="display:none;"></iframe>
+    <div id="form-status" style="margin-top:0.5rem; color:#64748b;">Pendiente</div>
+  </div>
+
+  <div class="card">
+    <h2>3. Petición Fetch con JSON (application/json)</h2>
+    <p>Payload ficticio: <code>{"credit_card":"4000123456789010", "cvv":"123"}</code></p>
+    <button id="btn-fetch-json" onclick="triggerFetch()">Ejecutar Fetch JSON</button>
+    <div id="fetch-status" style="margin-top:0.5rem; color:#64748b;">Pendiente</div>
+  </div>
+
+  <div class="card">
+    <h2>4. Envío con navigator.sendBeacon (texto plano)</h2>
+    <p>Payload ficticio: <code>fake_token=session_fictitious_token_98765</code></p>
+    <button id="btn-send-beacon" onclick="triggerBeacon()">Ejecutar sendBeacon</button>
+    <div id="beacon-status" style="margin-top:0.5rem; color:#64748b;">Pendiente</div>
+  </div>
+
+  <div class="card">
+    <h2>5. Resultados de Captura del Servidor y Service Worker</h2>
+    <button onclick="refreshResults()">Actualizar Resultados</button>
+    <div id="results-table-container">Cargando...</div>
+  </div>
+
+  <script>
+    // Verificar si content-main.js fue inyectado en el mundo MAIN
+    window.addEventListener("DOMContentLoaded", () => {
+      const statusDiv = document.getElementById("main-world-status");
+      if (window.__CREDFLOW_MAIN_WORLD_INJECTED__) {
+        statusDiv.innerHTML = '<span class="badge-success">CONFIRMADO: Content Script ejecutado en el contexto MAIN de la página</span> (Timestamp: ' + window.__CREDFLOW_MAIN_WORLD_TIMESTAMP__ + ')';
+      } else {
+        statusDiv.innerHTML = '<span class="badge-error">NO DETECTADO: window.__CREDFLOW_MAIN_WORLD_INJECTED__ no existe</span>';
+      }
+    });
+
+    // Form submit listener
+    document.getElementById("form-test").addEventListener("submit", () => {
+      document.getElementById("form-status").innerHTML = '<span class="badge-success">Formulario enviado correctamente por POST</span>';
+      setTimeout(refreshResults, 500);
+    });
+
+    // Fetch JSON
+    async function triggerFetch() {
+      const statusDiv = document.getElementById("fetch-status");
+      try {
+        const resp = await fetch("/api/fetch-json", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            credit_card: "4000123456789010",
+            cvv: "123"
+          })
+        });
+        const data = await resp.json();
+        statusDiv.innerHTML = '<span class="badge-success">Fetch exitoso (HTTP ' + resp.status + ')</span>';
+        setTimeout(refreshResults, 500);
+      } catch (err) {
+        statusDiv.innerHTML = '<span class="badge-error">Error en fetch: ' + err.message + '</span>';
+      }
+    }
+
+    // Beacon
+    function triggerBeacon() {
+      const statusDiv = document.getElementById("beacon-status");
+      const success = navigator.sendBeacon("/api/send-beacon", "fake_token=session_fictitious_token_98765");
+      if (success) {
+        statusDiv.innerHTML = '<span class="badge-success">Beacon enviado exitosamente</span>';
+        setTimeout(refreshResults, 500);
+      } else {
+        statusDiv.innerHTML = '<span class="badge-error">Fallo en navigator.sendBeacon</span>';
+      }
+    }
+
+    // Consultar al servidor los resultados registrados
+    async function refreshResults() {
+      const container = document.getElementById("results-table-container");
+      try {
+        const res = await fetch("/api/server-logs");
+        const logs = await res.json();
+        let html = '<table><thead><tr><th>Caso</th><th>Ruta / Endpoint</th><th>Recibido en Servidor</th><th>Tipo de Contenido</th></tr></thead><tbody>';
+        for (const log of logs) {
+          html += `<tr>
+            <td><strong>${log.caseName}</strong></td>
+            <td><code>${log.url}</code></td>
+            <td><pre>${log.bodySummary}</pre></td>
+            <td>${log.contentType}</td>
+          </tr>`;
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = '<p>Error al obtener logs: ' + e.message + '</p>';
+      }
+    }
+  </script>
+</body>
+</html>

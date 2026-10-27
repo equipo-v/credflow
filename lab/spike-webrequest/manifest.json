@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "CredFlow Spike WebRequest",
+  "version": "0.1.0",
+  "description": "Spike técnico para verificar requestBody en webRequest sin blocking y world: MAIN",
+  "permissions": [
+    "webRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content-main.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    }
+  ]
+}
