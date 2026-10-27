@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "CredFlow",
+  "version": "0.1.0",
+  "description": "Seguimiento y detección de fugas de credenciales y datos sensibles",
+  "permissions": [
+    "webRequest",
+    "storage",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  }
+}
