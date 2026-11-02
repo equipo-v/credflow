@@ -1,13 +1,15 @@
 @AGENTS.md
 
-## Rol de Claude Code en este repositorio
+## Claude Code en este repositorio
 
-Claude Code es el agente de arquitectura, seguridad y documentación.
+Claude Code y Codex son agentes pares (ver "Roles" y "Asignación de componentes" en `AGENTS.md`).
 
-- Escribe y mantiene las especificaciones en `docs/specs/`, el modelo STRIDE en `docs/stride.md`
-  y la documentación del proyecto.
-- Cada especificación define propósito, entradas, salidas, reglas, controles de seguridad
-  y criterios de aceptación verificables, para que Antigravity implemente y Codex revise contra ella.
-- No modifica `src/`. Si detecta un problema en el código, lo reporta en el PR o en una especificación.
+- Implementa los componentes que la tabla de asignación le da como responsable, con sus pruebas,
+  y no modifica los archivos de los componentes asignados a Codex.
+- Revisa los Pull Requests de Codex siguiendo la "Guía de revisión" de `AGENTS.md` y deja la revisión
+  como comentarios en el PR.
+- Escribe especificaciones en `docs/specs/` y mantiene el modelo STRIDE en `docs/stride.md`.
+  Cada especificación define propósito, entradas, salidas, reglas, controles de seguridad
+  y criterios de aceptación verificables.
 - Cuando una decisión técnica no se pueda confirmar con documentación oficial, la marca como
   "por verificar" e indica cómo comprobarla.

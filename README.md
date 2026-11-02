@@ -11,7 +11,7 @@ Víctor Gómez Echeverri y Darwin Garcia Andrade.
 ```
 credflow/
 ├── docs/
-│   ├── specs/          # especificaciones de cada componente (Claude Code)
+│   ├── specs/          # especificaciones de cada componente
 │   └── stride.md       # modelo de amenazas
 ├── src/
 │   ├── background/     # Service Worker: webRequest, huellas, veredictos, log
@@ -20,11 +20,12 @@ credflow/
 │   └── shared/         # tipos, validadores y constantes
 ├── lab/                # servidor y páginas del laboratorio de pruebas
 ├── tests/              # unit/ (Vitest) y e2e/ (Playwright)
-├── AGENTS.md           # reglas comunes para los agentes de IA
+├── AGENTS.md           # reglas comunes, roles y asignación de componentes de los agentes de IA
 └── CLAUDE.md           # rol de Claude Code
 ```
 
 ## Cómo trabajamos
 
-Claude Code especifica → Antigravity implementa → Codex revisa → una persona del equipo aprueba.
-Las reglas están en [AGENTS.md](AGENTS.md).
+Dos agentes de IA trabajan como pares: Claude Code y Codex especifican, implementan y se revisan mutuamente.
+Cada componente tiene un agente responsable y el otro revisa sus Pull Requests; una persona del equipo aprueba.
+Las reglas y la asignación de componentes están en [AGENTS.md](AGENTS.md).

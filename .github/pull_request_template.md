@@ -4,6 +4,12 @@
 
 Especificación: `docs/specs/...`
 
+Issue: Closes #
+
+Agente responsable: Claude Code / Codex
+
+Agente revisor: Claude Code / Codex
+
 ## Criterios de aceptación cubiertos
 
 - [ ] CA-…
@@ -19,6 +25,9 @@ Especificación: `docs/specs/...`
 - [ ] No se agregaron permisos al `manifest.json`, o la especificación y el STRIDE se actualizaron.
 - [ ] `npm run lint`, `npm test` y `npm run build` pasan.
 
-## Revisión de Codex
+## Revisión del otro agente
 
-- [ ] Se solicitó la revisión con `@codex review` y se atendieron sus comentarios.
+- [ ] El agente revisor (el que no es responsable) revisó el PR según la "Guía de revisión" de `AGENTS.md`.
+      Si el responsable es Claude Code, se pidió con `@codex review`.
+- [ ] Se atendieron sus hallazgos, o se justificó por escrito por qué no se aceptan.
+- [ ] El PR no modifica archivos de componentes asignados al otro agente.
