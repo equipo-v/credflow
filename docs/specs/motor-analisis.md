@@ -105,7 +105,7 @@ Se evalúa en este orden y gana la primera regla que aplique:
 
 | # | Condición | Veredicto | Severidad |
 | --- | --- | --- | --- |
-| 1 | El esquema de la URL es `http:` o `ws:` | `insecure_channel` | crítica |
+| 1 | El esquema de la URL es `http:` o `ws:` y el host no es de bucle local | `insecure_channel` | crítica |
 | 2 | El eTLD+1 del destino es distinto del de la página y no está en `authorizedProviders` | `third_party` | crítica |
 | 3 | La huella se encontró en la URL (cualquier destino) | `credential_in_url` | alta |
 | 4 | El eTLD+1 del destino está en `authorizedProviders` | `authorized_provider` | ninguna |
@@ -114,6 +114,9 @@ Se evalúa en este orden y gana la primera regla que aplique:
 - El sitio de la página se obtiene de `details.initiator`. Si no existe, se usa el último sitio conocido de la pestaña.
 - El eTLD+1 se calcula con `tldts` (`getDomain`). Si `tldts` no puede calcularlo (por ejemplo, una IP), se compara
   el host completo.
+- **Hosts de bucle local:** `localhost`, `*.localhost`, cualquier dirección `127.0.0.0/8` y `[::1]`. Se tratan como
+  seguros aunque usen `http:` o `ws:`, como los orígenes "potencialmente confiables" de la norma W3C *Secure Contexts*:
+  ese tráfico no sale del equipo. Esto permite el laboratorio de `docs/specs/laboratorio.md`.
 
 ### 4.5. Cuerpos no inspeccionables
 
@@ -124,7 +127,8 @@ Para que envolver el dato en un `Blob` no sirva para evadir la detección:
   no autorizado (eTLD+1 distinto del de la página y fuera de `authorizedProviders`), se emite un evento con veredicto
   `opaque_body`, severidad **alta**, `location: "body"` y `encoding: null`.
 - Si el destino es el mismo sitio o un proveedor autorizado, no se emite evento.
-- Si además el esquema es `http:` o `ws:`, el veredicto es `insecure_channel` / crítica, como en la regla 1.
+- Si además el esquema es `http:` o `ws:` y el host no es de bucle local, el veredicto es `insecure_channel` / crítica,
+  como en la regla 1.
 
 ### 4.6. Errores de análisis
 
@@ -205,6 +209,8 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
 - **CA-18** Un registro se elimina de la memoria al cumplir 30 s aunque no llegue ninguna petición de esa pestaña.
 - **CA-19** Cinco errores dentro de 60 s producen un único `DiagnosticEvent` sin datos de la petición; cuatro errores no
   producen ninguno, y una ventana nueva vuelve a contar desde cero.
+- **CA-20** Un envío por `http:` a `localhost`, `127.0.0.1`, `app.localhost` o `[::1]` no produce `insecure_channel`;
+  el mismo envío a `http://tienda.lab` sí.
 - **CA-17 (E2E)** En el laboratorio, enviar la contraseña dentro de un `Blob` con `fetch` hacia el dominio de
   métricas produce una alerta `opaque_body`.
 

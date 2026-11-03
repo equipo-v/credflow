@@ -1,0 +1,87 @@
+# Especificación: Laboratorio de pruebas y demo
+
+| Campo | Valor |
+| --- | --- |
+| Componente | Laboratorio de pruebas |
+| Ubicación | `lab/demo/` (sitio y servidor) y `tests/e2e/` (pruebas de extremo a extremo) |
+| Depende de | La extensión compilada (`dist/`) |
+| Estado | Borrador para revisión del equipo |
+
+## 1. Propósito
+
+Simular, en el propio equipo y sin Internet, una tienda en línea cuyo formulario de inicio de sesión es atacado por un
+script de "analítica" comprometido (ataque tipo Magecart), para demostrar que CredFlow detecta el robo y para comprobar
+automáticamente los criterios de aceptación de extremo a extremo.
+
+## 2. Sitios
+
+Un servidor Node.js sin dependencias (`lab/demo/server.mjs`) escucha en el puerto **8124** y sirve dos sitios que
+CredFlow considera distintos:
+
+| Sitio | URL | Papel |
+| --- | --- | --- |
+| Tienda | `http://localhost:8124` | Sitio legítimo con el formulario de inicio de sesión |
+| Métricas | `http://127.0.0.1:8124` | Dominio del atacante que recibe la credencial robada |
+
+El servidor responde `204` a cualquier `POST` a `/recibir/*`, permite CORS para que el envío entre sitios funcione y
+**no guarda ni muestra** lo que recibe.
+
+Ambos sitios usan HTTP sin cifrar en la dirección de bucle local. Ver la sección 5 sobre cómo afecta al veredicto.
+
+## 3. Escenarios
+
+La tienda (`/`) carga el formulario y un `analytics.js` cuyo comportamiento se elige con el parámetro `?escenario=`:
+
+| Escenario | Qué hace el script | Veredicto esperado |
+| --- | --- | --- |
+| `limpio` | Nada. El formulario se envía a la propia tienda (`POST /recibir/login`). | `same_site`, sin alerta |
+| `robo` | Al enviar el formulario, manda la contraseña en Base64 con `navigator.sendBeacon` a Métricas. | `third_party`, crítica |
+| `robo-blob` | Igual, pero dentro de un `Blob` con `fetch`. | `opaque_body`, alta |
+| `url` | Manda la contraseña en la consulta de la URL a la propia tienda. | `credential_in_url`, alta |
+
+La contraseña ficticia del laboratorio es `Prueba#2026`. La página muestra en grande el escenario activo y un texto
+que aclara que es un laboratorio con datos ficticios.
+
+## 4. Demo manual y pruebas automáticas
+
+- **Demo manual:** `npm run lab` inicia el servidor e imprime las URLs de cada escenario. Se carga `dist/` en
+  `chrome://extensions` (modo desarrollador), se abre un escenario, se escribe la contraseña y se envía el formulario.
+- **Pruebas automáticas:** `npm run test:e2e` compila la extensión, inicia el servidor, abre Chromium con la extensión
+  cargada mediante Playwright y recorre cada escenario escribiendo la contraseña **con eventos de teclado reales**.
+  Comprueba el ícono, el popup y, cuando aplique, que no hubo evento. Guarda una captura de pantalla del popup por
+  escenario en `test-results/` como evidencia.
+- Las pruebas E2E cubren CA-13 y CA-17 del Motor, CA-P3 a CA-P7 del Puente y CA-U6 y CA-U7 del Popup.
+
+## 5. Cambio necesario en el Motor: direcciones de bucle local
+
+Con la regla 1 actual del Motor, **toda** petición `http:` es `insecure_channel`. Como el laboratorio usa HTTP en
+`localhost`, todos los escenarios darían "canal sin cifrar" y no se podrían distinguir.
+
+Se propone, en `docs/specs/motor-analisis.md` (sección 4.4), tratar como seguras las direcciones de bucle local
+(`localhost`, `*.localhost`, `127.0.0.0/8` y `[::1]`), como hace la norma W3C *Secure Contexts* con los orígenes
+"potencialmente confiables". El tráfico a esas direcciones no sale del equipo, así que no hay canal de red que cifrar.
+
+El escenario de canal sin cifrar (`insecure_channel`) se prueba en las pruebas automáticas con un nombre de host que
+no es de bucle local (`http://tienda.lab:8124`), redirigido a `127.0.0.1` con la opción de Chromium
+`--host-resolver-rules`. En la demo manual es opcional y requiere agregar `tienda.lab` al archivo `hosts`.
+
+## 6. Controles
+
+| Control | Referencia |
+| --- | --- |
+| Solo credenciales ficticias | AGENTS.md (Pruebas) |
+| El servidor solo escucha en `127.0.0.1` y `localhost`, no en la red local | Evita exponer el laboratorio a otros equipos |
+| El servidor no guarda ni muestra lo que recibe | ASVS 4.0.3 V7.1.1 |
+| Sin dependencias nuevas: servidor con `node:http`, pruebas con `playwright` (ya permitido) | AGENTS.md (Dependencias) |
+
+## 7. Criterios de aceptación
+
+- **CA-L1** `npm run lab` inicia el servidor solo en interfaces de bucle local y responde en las dos URLs.
+- **CA-L2** Cada escenario de la sección 3 produce exactamente el veredicto esperado y ningún otro evento crítico.
+- **CA-L3** `npm run test:e2e` termina con éxito en un equipo sin conexión a Internet y deja una captura por escenario.
+- **CA-L4** Ningún archivo del laboratorio ni de las pruebas contiene una credencial real.
+
+## 8. Fuera de alcance
+
+- HTTPS con certificados en el laboratorio.
+- Escenarios del interceptor en el mundo `MAIN` y de keyloggers.
