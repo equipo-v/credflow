@@ -20,12 +20,11 @@ credflow/
 │   └── shared/         # tipos, validadores y constantes
 ├── lab/                # servidor y páginas del laboratorio de pruebas
 ├── tests/              # unit/ (Vitest) y e2e/ (Playwright)
-├── AGENTS.md           # reglas comunes, roles y asignación de componentes de los agentes de IA
+├── AGENTS.md           # reglas del agente de IA, roles y guía de revisión
 └── CLAUDE.md           # rol de Claude Code
 ```
 
 ## Cómo trabajamos
 
-Dos agentes de IA trabajan como pares: Claude Code y Codex especifican, implementan y se revisan mutuamente.
-Cada componente tiene un agente responsable y el otro revisa sus Pull Requests; una persona del equipo aprueba.
-Las reglas y la asignación de componentes están en [AGENTS.md](AGENTS.md).
+Claude Code especifica, implementa y prueba cada componente; una persona del equipo revisa y aprueba cada
+Pull Request. Las reglas, los componentes y la guía de revisión están en [AGENTS.md](AGENTS.md).
