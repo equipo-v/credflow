@@ -79,7 +79,8 @@ Se descarta el mensaje (sin error visible para la página) si no se cumple **tod
 
 - Solo en memoria: `Map<tabId, Array<{ fieldType, encoding, value, expiresAt }>>`.
 - `expiresAt = ahora + 30 000 ms`. Un registro nuevo del mismo campo reemplaza al anterior.
-- Las huellas vencidas se eliminan antes de cada búsqueda.
+- Las huellas vencidas se eliminan antes de cada búsqueda y, además, cada registro se elimina con un temporizador
+  al cumplir sus 30 s, aunque la pestaña no haga más peticiones (ASVS 4.0.3 V8.3.6).
 - Al cerrar la pestaña (`chrome.tabs.onRemoved`) se eliminan sus huellas.
 - Si el Service Worker se reinicia, las huellas se pierden. Es aceptable: el usuario volverá a escribir.
 
@@ -190,6 +191,7 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
   `opaque_body` / `high` con `encoding: null`.
 - **CA-15** Con huellas activas, una petición al mismo sitio con `requestBody.error` no produce evento.
 - **CA-16** Sin huellas activas en la pestaña, una petición con `requestBody.error` no produce evento.
+- **CA-18** Un registro se elimina de la memoria al cumplir 30 s aunque no llegue ninguna petición de esa pestaña.
 - **CA-17 (E2E)** En el laboratorio, enviar la contraseña dentro de un `Blob` con `fetch` hacia el dominio de
   métricas produce una alerta `opaque_body`.
 

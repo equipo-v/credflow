@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FingerprintStore } from "../../../src/background/fingerprint-store";
 import type { RegisterFingerprints } from "../../../src/shared/types";
 
@@ -67,5 +67,39 @@ describe("FingerprintStore", () => {
     store.register(1, msg, 0);
     msg.fingerprints[0]!.value = "modificada";
     expect(store.active(1, 1)[0]?.value).toBe("Prueba#2026");
+  });
+});
+
+describe("FingerprintStore: eliminación por temporizador", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // CA-18
+  it("elimina el registro a los 30 s aunque no llegue ninguna petición", () => {
+    const store = new FingerprintStore();
+    store.register(1, message("password", "Prueba#2026"), Date.now());
+    expect(store.tabCount).toBe(1);
+    vi.advanceTimersByTime(29_999);
+    expect(store.tabCount).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(store.tabCount).toBe(0);
+  });
+
+  it("el temporizador de un registro reemplazado no borra el registro nuevo", () => {
+    const store = new FingerprintStore();
+    store.register(1, message("password", "Prueba#2026"), Date.now());
+    vi.advanceTimersByTime(20_000);
+    store.register(1, message("password", "Nueva#2027"), Date.now());
+    vi.advanceTimersByTime(10_000); // vence el plazo del primero
+    expect(store.active(1, Date.now())).toHaveLength(1);
+    vi.advanceTimersByTime(20_000); // vence el plazo del segundo
+    expect(store.tabCount).toBe(0);
+  });
+
+  it("cerrar la pestaña cancela sus temporizadores", () => {
+    const store = new FingerprintStore();
+    store.register(1, message("password", "Prueba#2026"), Date.now());
+    store.clearTab(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

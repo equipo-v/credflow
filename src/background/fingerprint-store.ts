@@ -8,6 +8,7 @@ export type ActiveFingerprint = Fingerprint & { fieldType: FieldType };
 type Entry = {
   fingerprints: Fingerprint[];
   expiresAt: number;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 export class FingerprintStore {
@@ -20,10 +21,15 @@ export class FingerprintStore {
       fields = new Map();
       this.byTab.set(tabId, fields);
     }
-    fields.set(message.fieldType, {
+    const previous = fields.get(message.fieldType);
+    if (previous) clearTimeout(previous.timer);
+    const entry: Entry = {
       fingerprints: message.fingerprints.map((fp) => ({ ...fp })),
       expiresAt: now + FINGERPRINT_TTL_MS,
-    });
+      // Elimina el registro al vencer aunque la pestaña no haga más peticiones (ASVS 8.3.6).
+      timer: setTimeout(() => this.remove(tabId, message.fieldType, entry), FINGERPRINT_TTL_MS),
+    };
+    fields.set(message.fieldType, entry);
   }
 
   /** Devuelve las huellas vigentes de la pestaña, eliminando antes las vencidas. */
@@ -33,6 +39,7 @@ export class FingerprintStore {
     const result: ActiveFingerprint[] = [];
     for (const [fieldType, entry] of fields) {
       if (entry.expiresAt <= now) {
+        clearTimeout(entry.timer);
         fields.delete(fieldType);
         continue;
       }
@@ -43,6 +50,20 @@ export class FingerprintStore {
   }
 
   clearTab(tabId: number): void {
+    for (const entry of this.byTab.get(tabId)?.values() ?? []) clearTimeout(entry.timer);
     this.byTab.delete(tabId);
+  }
+
+  /** Número de pestañas con registros en memoria (para pruebas y diagnóstico; no expone huellas). */
+  get tabCount(): number {
+    return this.byTab.size;
+  }
+
+  private remove(tabId: number, fieldType: FieldType, entry: Entry): void {
+    const fields = this.byTab.get(tabId);
+    // Solo elimina si sigue siendo el mismo registro (uno nuevo del mismo campo lo pudo reemplazar).
+    if (fields?.get(fieldType) !== entry) return;
+    fields.delete(fieldType);
+    if (fields.size === 0) this.byTab.delete(tabId);
   }
 }
