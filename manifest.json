@@ -5,15 +5,13 @@
   "description": "Seguimiento y detección de fugas de credenciales y datos sensibles",
   "permissions": [
     "webRequest",
-    "storage",
-    "notifications",
-    "alarms"
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none'"
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
   },
   "background": {
     "service_worker": "src/background/index.ts",
