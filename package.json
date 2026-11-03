@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "spike:webrequest": "node lab/spike-webrequest/run.mjs"
   },
   "dependencies": {
     "tldts": "6.1.86"

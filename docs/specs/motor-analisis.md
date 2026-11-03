@@ -14,17 +14,18 @@ Detectar cuándo un dato sensible escrito por el usuario sale del navegador en u
 ese flujo según su destino y su canal. Es la **capa autoritativa** de CredFlow: solo este componente confirma
 una exfiltración.
 
-## 2. Requisito previo: verificación técnica (hacer primero)
+## 2. Verificación técnica previa (hecha)
 
-Antes de implementar el resto, construir una extensión mínima que confirme que
-`chrome.webRequest.onBeforeRequest`, registrado con `extraInfoSpec: ["requestBody"]` y **sin** `"blocking"`,
-entrega `details.requestBody` (`formData` y `raw`) en una extensión Manifest V3 instalada en modo desarrollador.
+Resultado completo en `docs/verificaciones/webrequest-requestbody.md` (reproducible con
+`node lab/spike-webrequest/run.mjs`).
 
-- Si funciona: continuar con esta especificación.
-- Si no funciona: **detener** y reportar a Claude Code; la capa de red debe rediseñarse.
-
-Probar al menos: envío de formulario (`application/x-www-form-urlencoded`), `fetch` con cuerpo JSON
-y `navigator.sendBeacon` con texto.
+- `chrome.webRequest.onBeforeRequest` con `extraInfoSpec: ["requestBody"]` y **sin** `"blocking"` entrega el cuerpo
+  en Manifest V3 para texto, JSON, formularios, `URLSearchParams`, `ArrayBuffer`, `Uint8Array`, `keepalive`
+  y `sendBeacon` con texto. **La capa de red es viable.**
+- **Punto ciego:** con cuerpos `Blob`, `File` o `ReadableStream`, Chrome entrega `requestBody.error` en lugar del
+  contenido, y en un multipart con archivo el contenido del archivo no llega. Se cubre con el veredicto
+  `opaque_body` (sección 4.4).
+- Por verificar: repetir la prueba en Google Chrome estable (se usó el Chromium de Playwright).
 
 ## 3. Entradas
 
@@ -37,7 +38,7 @@ type RegisterFingerprints = {
   kind: "REGISTER_FINGERPRINTS";
   fieldType: "password" | "card" | "custom";
   fingerprints: Array<{
-    encoding: "original" | "base64" | "url" | "hex" | "reversed";
+    encoding: "original" | "base64" | "url" | "hex" | "reversed" | null; // null solo en opaque_body
     value: string;
   }>;
 };
@@ -94,6 +95,8 @@ Para cada petición de una pestaña con huellas activas:
    se marca con `truncated: true`.
 3. Coincidencia exacta y sensible a mayúsculas de cada huella; para `hex`, sin distinguir mayúsculas.
 4. Se registra **un solo evento por petición**: el de la primera huella encontrada, priorizando el cuerpo sobre la URL.
+5. **Cuerpo opaco:** si `requestBody.error` existe, o alguna parte de `raw` trae `file` en lugar de `bytes`, el cuerpo
+   no se puede inspeccionar. Se sigue buscando en la URL y, si no hay coincidencia, se aplica la sección 4.5.
 
 ### 4.4. Clasificación
 
@@ -110,6 +113,17 @@ Se evalúa en este orden y gana la primera regla que aplique:
 - El sitio de la página se obtiene de `details.initiator`. Si no existe, se usa el último sitio conocido de la pestaña.
 - El eTLD+1 se calcula con `tldts` (`getDomain`). Si `tldts` no puede calcularlo (por ejemplo, una IP), se compara
   el host completo.
+
+### 4.5. Cuerpos no inspeccionables
+
+Chrome no entrega el contenido de los cuerpos `Blob`, `File` ni `ReadableStream` (ver la verificación técnica).
+Para que envolver el dato en un `Blob` no sirva para evadir la detección:
+
+- Si la pestaña tiene huellas activas, el cuerpo es opaco, no hubo coincidencia en la URL y el destino es un tercero
+  no autorizado (eTLD+1 distinto del de la página y fuera de `authorizedProviders`), se emite un evento con veredicto
+  `opaque_body`, severidad **alta**, `location: "body"` y `encoding: null`.
+- Si el destino es el mismo sitio o un proveedor autorizado, no se emite evento.
+- Si además el esquema es `http:` o `ws:`, el veredicto es `insecure_channel` / crítica, como en la regla 1.
 
 ## 5. Salida
 
@@ -129,7 +143,13 @@ type FlowEvent = {
   encoding: "original" | "base64" | "url" | "hex" | "reversed";
   location: "body" | "url";
   truncated: boolean;
-  verdict: "insecure_channel" | "third_party" | "credential_in_url" | "authorized_provider" | "same_site";
+  verdict:
+    | "insecure_channel"
+    | "third_party"
+    | "opaque_body"
+    | "credential_in_url"
+    | "authorized_provider"
+    | "same_site";
   severity: "critical" | "high" | "none";
 };
 ```
@@ -144,6 +164,7 @@ El evento **nunca** contiene el valor ni la huella, ni la URL completa: la ruta 
 | Validación estricta del mensaje y `tabId` tomado del remitente | ASVS 4.0.3 V5.1.3; STRIDE #1 |
 | Límite de 256 KB por cuerpo y análisis solo en pestañas con huellas activas | ASVS 4.0.3 V11.1.4; STRIDE #5 |
 | Un error al analizar una petición se captura y no detiene el listener | ASVS 4.0.3 V7.4.1 |
+| Un cuerpo no inspeccionable hacia un tercero se reporta como `opaque_body`, para que un `Blob` no sirva de evasión | STRIDE #2 |
 
 ## 7. Criterios de aceptación
 
@@ -165,6 +186,12 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
 - **CA-12** Un cuerpo de 1 MB se analiza solo en sus primeros 256 KB y el evento lleva `truncated: true`.
 - **CA-13 (E2E)** En el laboratorio, la página de la tienda con el script de "analítica" genera una alerta
   `third_party` hacia el dominio de métricas.
+- **CA-14** Con huellas activas, una petición a un tercero no autorizado con `requestBody.error` produce
+  `opaque_body` / `high` con `encoding: null`.
+- **CA-15** Con huellas activas, una petición al mismo sitio con `requestBody.error` no produce evento.
+- **CA-16** Sin huellas activas en la pestaña, una petición con `requestBody.error` no produce evento.
+- **CA-17 (E2E)** En el laboratorio, enviar la contraseña dentro de un `Blob` con `fetch` hacia el dominio de
+  métricas produce una alerta `opaque_body`.
 
 ## 8. Fuera de alcance
 
