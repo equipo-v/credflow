@@ -126,6 +126,17 @@ Para que envolver el dato en un `Blob` no sirva para evadir la detección:
 - Si el destino es el mismo sitio o un proveedor autorizado, no se emite evento.
 - Si además el esquema es `http:` o `ws:`, el veredicto es `insecure_channel` / crítica, como en la regla 1.
 
+### 4.6. Errores de análisis
+
+Un error al procesar un mensaje o una petición se captura y no detiene el análisis de las siguientes. Para que los
+errores no pasen desapercibidos (una página podría provocarlos a propósito para evadir el análisis):
+
+- El Motor cuenta en memoria los errores en ventanas de 60 s.
+- Cuando una ventana llega a **5 errores**, emite un `DiagnosticEvent` con `kind: "analysis_errors"`, la hora en UTC,
+  el número de errores y la duración de la ventana. Como máximo emite uno por ventana.
+- El evento no contiene datos de la petición ni del mensaje que falló: ni URL, ni cuerpo, ni huellas, ni el texto
+  del error.
+
 ## 5. Salida
 
 Evento emitido hacia el Registro de auditoría y el Popup:
@@ -192,6 +203,8 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
 - **CA-15** Con huellas activas, una petición al mismo sitio con `requestBody.error` no produce evento.
 - **CA-16** Sin huellas activas en la pestaña, una petición con `requestBody.error` no produce evento.
 - **CA-18** Un registro se elimina de la memoria al cumplir 30 s aunque no llegue ninguna petición de esa pestaña.
+- **CA-19** Cinco errores dentro de 60 s producen un único `DiagnosticEvent` sin datos de la petición; cuatro errores no
+  producen ninguno, y una ventana nueva vuelve a contar desde cero.
 - **CA-17 (E2E)** En el laboratorio, enviar la contraseña dentro de un `Blob` con `fetch` hacia el dominio de
   métricas produce una alerta `opaque_body`.
 

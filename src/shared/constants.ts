@@ -16,3 +16,7 @@ export const MAX_BODY_BYTES = 256 * 1024;
 export const FIELD_TYPES = ["password", "card", "custom"] as const;
 
 export const ENCODINGS = ["original", "base64", "url", "hex", "reversed"] as const;
+
+/** Ventana y umbral para emitir un evento de diagnóstico por errores de análisis (sección 4.6). */
+export const ERROR_WINDOW_MS = 60_000;
+export const ERROR_THRESHOLD = 5;

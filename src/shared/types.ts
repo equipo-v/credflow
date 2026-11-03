@@ -55,3 +55,15 @@ export type FlowEvent = {
   verdict: Verdict;
   severity: Severity;
 };
+
+/**
+ * Evento de diagnóstico del Motor (sección 4.6 de la especificación).
+ * Nunca contiene datos de la petición o del mensaje que falló.
+ */
+export type DiagnosticEvent = {
+  kind: "analysis_errors";
+  /** ISO 8601 en UTC. */
+  timestamp: string;
+  errorCount: number;
+  windowSeconds: number;
+};

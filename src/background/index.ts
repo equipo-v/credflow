@@ -3,13 +3,25 @@
 import { parseRegisterFingerprints, trustedSenderTabId } from "../shared/validators";
 import { analyzeRequest } from "./analyze";
 import { FingerprintStore } from "./fingerprint-store";
-import { publishFlowEvent } from "./flow-events";
+import { ErrorMonitor } from "./error-monitor";
+import { publishDiagnostic, publishFlowEvent } from "./flow-events";
 import { parseManagedConfig, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
 
 const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
+const errors = new ErrorMonitor();
 let config: ManagedConfig = parseManagedConfig(undefined);
+
+/** Registra un error sin ningún dato de lo que falló y avisa si se repiten (sección 4.6). */
+function recordError(): void {
+  try {
+    const diagnostic = errors.record(Date.now());
+    if (diagnostic) publishDiagnostic(diagnostic);
+  } catch {
+    // El registro de errores nunca debe provocar otro error.
+  }
+}
 
 async function loadManagedConfig(): Promise<void> {
   try {
@@ -35,6 +47,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender) => {
     store.register(tabId, parsed, Date.now());
   } catch {
     // Mensaje descartado sin error visible para la página (sección 4.1).
+    recordError();
   }
 });
 
@@ -68,6 +81,7 @@ chrome.webRequest.onBeforeRequest.addListener(
       }
     } catch {
       // Un error al analizar una petición no detiene el análisis de las siguientes (AGENTS.md, regla 8).
+      recordError();
     }
   },
   { urls: ["<all_urls>"] },
