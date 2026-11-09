@@ -136,12 +136,16 @@ describe("isExtensionPageSender (CA-U4)", () => {
   const EXT = "abcdefghijklmnopabcdefghijklmnop";
   const popupUrl = `chrome-extension://${EXT}/src/popup/popup.html`;
 
-  it("acepta el popup de la propia extensión", () => {
+  it("acepta el popup de la propia extensión, también abierto en una pestaña", () => {
     expect(isExtensionPageSender({ id: EXT, url: popupUrl }, EXT)).toBe(true);
+    expect(isExtensionPageSender({ id: EXT, url: popupUrl, tab: { id: 3 } }, EXT)).toBe(true);
   });
 
   it("rechaza content scripts, otras extensiones y URLs ajenas", () => {
-    expect(isExtensionPageSender({ id: EXT, url: popupUrl, tab: { id: 3 } }, EXT)).toBe(false);
+    // Un content script envía con la URL de la página web en la que corre.
+    expect(
+      isExtensionPageSender({ id: EXT, url: "https://tienda.lab/", tab: { id: 3 } }, EXT)
+    ).toBe(false);
     expect(isExtensionPageSender({ id: "otra", url: popupUrl }, EXT)).toBe(false);
     expect(isExtensionPageSender({ id: EXT, url: "https://evil.com/" }, EXT)).toBe(false);
     expect(isExtensionPageSender({ id: EXT, url: `chrome-extension://${EXT}.evil/x` }, EXT)).toBe(
