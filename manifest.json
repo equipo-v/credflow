@@ -19,5 +19,17 @@
   },
   "storage": {
     "managed_schema": "managed-schema.json"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/bridge.ts"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
 }
