@@ -10,7 +10,7 @@
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["chrome"]
+    "types": ["chrome", "vite/client"]
   },
   "include": ["src/**/*", "tests/**/*", "vite.config.ts"]
 }

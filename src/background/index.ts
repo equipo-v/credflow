@@ -1,16 +1,24 @@
 // Service Worker de CredFlow: conecta el Motor de análisis con las APIs de Chrome.
 // La lógica está en módulos puros (analyze, fingerprint-store, request-body) que se prueban sin navegador.
-import { parseRegisterFingerprints, trustedSenderTabId } from "../shared/validators";
+import type { TabEventsResponse } from "../shared/types";
+import {
+  isExtensionPageSender,
+  parseGetTabEvents,
+  parseRegisterFingerprints,
+  trustedSenderTabId,
+} from "../shared/validators";
 import { analyzeRequest } from "./analyze";
 import { FingerprintStore } from "./fingerprint-store";
 import { ErrorMonitor } from "./error-monitor";
-import { publishDiagnostic, publishFlowEvent } from "./flow-events";
+import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./flow-events";
 import { parseManagedConfig, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
+import { badgeFor, TabEventLog } from "./tab-events";
 
 const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
 const errors = new ErrorMonitor();
+const tabEvents = new TabEventLog();
 let config: ManagedConfig = parseManagedConfig(undefined);
 
 /** Registra un error sin ningún dato de lo que falló y avisa si se repiten (sección 4.6). */
@@ -34,12 +42,30 @@ async function loadManagedConfig(): Promise<void> {
 
 void loadManagedConfig();
 
+// Eventos por pestaña y alerta en el ícono (docs/specs/popup-alertas.md, secciones 2 y 3).
+subscribeToFlowEvents((event) => {
+  const badge = badgeFor(tabEvents.add(event));
+  if (!badge) return;
+  void chrome.action.setBadgeText({ tabId: event.tabId, text: badge.text }).catch(() => undefined);
+  void chrome.action
+    .setBadgeBackgroundColor({ tabId: event.tabId, color: badge.color })
+    .catch(() => undefined);
+});
+
 chrome.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName === "managed") void loadManagedConfig();
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   try {
+    // Petición del popup: solo se responde a páginas de la propia extensión (popup-alertas.md, sección 4).
+    const request = parseGetTabEvents(message);
+    if (request !== null) {
+      if (!isExtensionPageSender(sender, chrome.runtime.id)) return;
+      const response: TabEventsResponse = { events: tabEvents.list(request.tabId) };
+      sendResponse(response);
+      return;
+    }
     const tabId = trustedSenderTabId(sender, chrome.runtime.id);
     if (tabId === null) return;
     const parsed = parseRegisterFingerprints(message);
@@ -91,4 +117,5 @@ chrome.webRequest.onBeforeRequest.addListener(
 chrome.tabs.onRemoved.addListener((tabId) => {
   store.clearTab(tabId);
   lastPageSite.delete(tabId);
+  tabEvents.clear(tabId);
 });

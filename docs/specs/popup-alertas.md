@@ -41,6 +41,9 @@ type TabEventsResponse = { events: FlowEvent[] };
 
 - El popup averigua la pestaña activa con `chrome.tabs.query({ active: true, currentWindow: true })`. Esta llamada no
   requiere el permiso `tabs`, porque solo se usa el `id`.
+- Para las pruebas E2E, el popup también se puede abrir como página con el fragmento `#tabId=N` (N entero no negativo,
+  validado con una expresión regular). Solo afecta a qué pestaña se consulta; la respuesta sigue limitada a páginas de
+  la propia extensión.
 - El Service Worker **solo responde** si el mensaje viene de una página de la propia extensión: `sender.id` es el de la
   extensión, `sender.tab` no existe y `sender.url` empieza por `chrome-extension://<id de la extensión>/`. Un content
   script (que sí tiene `sender.tab`) no puede pedir los eventos de otras pestañas.

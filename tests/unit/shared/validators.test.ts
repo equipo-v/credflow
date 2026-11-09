@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseRegisterFingerprints, trustedSenderTabId } from "../../../src/shared/validators";
+import {
+  isExtensionPageSender,
+  parseGetTabEvents,
+  parseRegisterFingerprints,
+  trustedSenderTabId,
+} from "../../../src/shared/validators";
 
 const valid = {
   kind: "REGISTER_FINGERPRINTS",
@@ -107,5 +112,41 @@ describe("trustedSenderTabId", () => {
     expect(trustedSenderTabId({ id: EXT, tab: {} }, EXT)).toBeNull();
     expect(trustedSenderTabId({ id: EXT, tab: { id: -1 } }, EXT)).toBeNull();
     expect(trustedSenderTabId({ id: EXT, tab: { id: 1.5 } }, EXT)).toBeNull();
+  });
+});
+
+describe("parseGetTabEvents (CA-U3)", () => {
+  it("acepta exactamente kind y tabId", () => {
+    expect(parseGetTabEvents({ kind: "GET_TAB_EVENTS", tabId: 4 })).toEqual({
+      kind: "GET_TAB_EVENTS",
+      tabId: 4,
+    });
+  });
+
+  it("rechaza campos adicionales y tabId negativos o no enteros", () => {
+    expect(parseGetTabEvents({ kind: "GET_TAB_EVENTS", tabId: 4, all: true })).toBeNull();
+    expect(parseGetTabEvents({ kind: "GET_TAB_EVENTS", tabId: -1 })).toBeNull();
+    expect(parseGetTabEvents({ kind: "GET_TAB_EVENTS", tabId: 1.5 })).toBeNull();
+    expect(parseGetTabEvents({ kind: "GET_TAB_EVENTS", tabId: "4" })).toBeNull();
+    expect(parseGetTabEvents({ kind: "REGISTER_FINGERPRINTS", tabId: 4 })).toBeNull();
+  });
+});
+
+describe("isExtensionPageSender (CA-U4)", () => {
+  const EXT = "abcdefghijklmnopabcdefghijklmnop";
+  const popupUrl = `chrome-extension://${EXT}/src/popup/popup.html`;
+
+  it("acepta el popup de la propia extensión", () => {
+    expect(isExtensionPageSender({ id: EXT, url: popupUrl }, EXT)).toBe(true);
+  });
+
+  it("rechaza content scripts, otras extensiones y URLs ajenas", () => {
+    expect(isExtensionPageSender({ id: EXT, url: popupUrl, tab: { id: 3 } }, EXT)).toBe(false);
+    expect(isExtensionPageSender({ id: "otra", url: popupUrl }, EXT)).toBe(false);
+    expect(isExtensionPageSender({ id: EXT, url: "https://evil.com/" }, EXT)).toBe(false);
+    expect(isExtensionPageSender({ id: EXT, url: `chrome-extension://${EXT}.evil/x` }, EXT)).toBe(
+      false
+    );
+    expect(isExtensionPageSender({ id: EXT }, EXT)).toBe(false);
   });
 });

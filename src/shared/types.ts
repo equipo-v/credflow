@@ -67,3 +67,13 @@ export type DiagnosticEvent = {
   errorCount: number;
   windowSeconds: number;
 };
+
+/** Petición del popup al Service Worker (docs/specs/popup-alertas.md, sección 4). */
+export type GetTabEvents = {
+  kind: "GET_TAB_EVENTS";
+  tabId: number;
+};
+
+export type TabEventsResponse = {
+  events: FlowEvent[];
+};

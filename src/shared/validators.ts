@@ -7,7 +7,7 @@ import {
   MAX_FINGERPRINTS,
   MIN_FINGERPRINT_LENGTH,
 } from "./constants";
-import type { Encoding, FieldType, Fingerprint, RegisterFingerprints } from "./types";
+import type { Encoding, FieldType, Fingerprint, GetTabEvents, RegisterFingerprints } from "./types";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -72,4 +72,27 @@ export function trustedSenderTabId(
   const tabId = sender.tab?.id;
   if (typeof tabId !== "number" || !Number.isInteger(tabId) || tabId < 0) return null;
   return tabId;
+}
+
+/** Valida GET_TAB_EVENTS: exactamente kind y tabId, con tabId entero mayor o igual que 0. */
+export function parseGetTabEvents(message: unknown): GetTabEvents | null {
+  if (!isPlainObject(message) || !hasExactKeys(message, ["kind", "tabId"])) return null;
+  const { kind, tabId } = message;
+  if (kind !== "GET_TAB_EVENTS") return null;
+  if (typeof tabId !== "number" || !Number.isInteger(tabId) || tabId < 0) return null;
+  return { kind, tabId };
+}
+
+/**
+ * Comprueba que el remitente es una página de la propia extensión (el popup), no un content script:
+ * sin pestaña y con una URL dentro de la extensión (docs/specs/popup-alertas.md, sección 4).
+ */
+export function isExtensionPageSender(
+  sender: { id?: string | undefined; tab?: unknown; url?: string | undefined },
+  extensionId: string
+): boolean {
+  if (sender.id !== extensionId || sender.tab !== undefined) return false;
+  return (
+    typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${extensionId}/`)
+  );
 }
