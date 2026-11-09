@@ -46,6 +46,22 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "lab/**"],
+    // Pruebas E2E: scripts de Node que reportan en consola y evalúan código dentro de la extensión.
+    files: ["tests/e2e/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+        // Código que se evalúa dentro del navegador con page.evaluate y worker.evaluate.
+        chrome: "readonly",
+        document: "readonly",
+        Event: "readonly",
+      },
+    },
+    rules: { "no-console": "off" },
+  },
+  {
+    ignores: ["dist/**", "node_modules/**", "lab/**", "test-results/**"],
   }
 );

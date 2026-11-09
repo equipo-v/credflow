@@ -27,8 +27,11 @@ function byId(id: string): HTMLElement {
  * la pestaña en el fragmento (#tabId=N); el valor se valida como entero no negativo.
  */
 async function targetTabId(): Promise<number | null> {
-  const match = /^#tabId=(\d{1,9})$/.exec(location.hash);
-  if (match?.[1]) return Number(match[1]);
+  const match = /^#tabId=(\d{1,16})$/.exec(location.hash);
+  if (match?.[1]) {
+    const tabId = Number(match[1]);
+    return Number.isSafeInteger(tabId) ? tabId : null;
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return typeof tab?.id === "number" && tab.id >= 0 ? tab.id : null;
 }

@@ -84,15 +84,14 @@ export function parseGetTabEvents(message: unknown): GetTabEvents | null {
 }
 
 /**
- * Comprueba que el remitente es una página de la propia extensión (el popup), no un content script:
- * sin pestaña y con una URL dentro de la extensión (docs/specs/popup-alertas.md, sección 4).
+ * Comprueba que el remitente es una página de la propia extensión (el popup), no un content script
+ * (docs/specs/popup-alertas.md, sección 4). Un content script siempre tiene la URL de la página web donde corre;
+ * solo las páginas de la extensión tienen una URL chrome-extension://<id>/, y la extensión no expone recursos a la web.
  */
 export function isExtensionPageSender(
-  sender: { id?: string | undefined; tab?: unknown; url?: string | undefined },
+  sender: { id?: string | undefined; url?: string | undefined; tab?: unknown },
   extensionId: string
 ): boolean {
-  if (sender.id !== extensionId || sender.tab !== undefined) return false;
-  return (
-    typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${extensionId}/`)
-  );
+  if (sender.id !== extensionId || typeof sender.url !== "string") return false;
+  return sender.url.startsWith(`chrome-extension://${extensionId}/`);
 }

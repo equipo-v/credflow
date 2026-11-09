@@ -28,3 +28,26 @@ credflow/
 
 Claude Code especifica → Antigravity implementa → Codex revisa → una persona del equipo aprueba.
 Las reglas están en [AGENTS.md](AGENTS.md).
+
+## Demo
+
+```bash
+npm ci
+npm run build          # genera la extensión en dist/
+npm run lab            # inicia la tienda de laboratorio en http://localhost:8124
+```
+
+1. En Chrome, abre `chrome://extensions`, activa el **modo de desarrollador** y usa **Cargar descomprimida** con la
+   carpeta `dist/`.
+2. Abre un escenario, por ejemplo `http://localhost:8124/?escenario=robo`, escribe la contraseña ficticia
+   `Prueba#2026` y pulsa **Iniciar sesión**.
+3. El ícono de CredFlow se pone rojo; al abrirlo se ve el flujo hacia el dominio de métricas.
+
+Escenarios: `limpio`, `robo`, `robo-blob` y `url` (`docs/specs/laboratorio.md`).
+
+Pruebas automáticas de la demo, con capturas en `test-results/demo/`:
+
+```bash
+npx playwright install chromium   # solo la primera vez
+npm run test:e2e
+```

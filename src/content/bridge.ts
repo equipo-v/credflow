@@ -9,6 +9,8 @@ type FieldState = {
   timer: ReturnType<typeof setTimeout> | null;
   /** Hubo cambios desde el último envío. No se guarda nada del valor (sección 4.4). */
   dirty: boolean;
+  /** El usuario escribió en el campo con eventos de confianza. Sin esto, nunca se envía. */
+  typed: boolean;
 };
 
 // Por campo solo se guarda el temporizador y la marca de cambios pendientes (sección 4.4).
@@ -22,7 +24,7 @@ function sensitiveField(target: EventTarget | null): HTMLInputElement | null {
 function stateOf(field: HTMLInputElement): FieldState {
   let state = states.get(field);
   if (!state) {
-    state = { timer: null, dirty: false };
+    state = { timer: null, dirty: false, typed: false };
     states.set(field, state);
   }
   return state;
@@ -34,6 +36,9 @@ function sendFingerprints(field: HTMLInputElement, force = false): void {
     clearTimeout(state.timer);
     state.timer = null;
   }
+  // Solo se envían campos donde el usuario escribió de verdad: un script de la página no puede cambiar el valor
+  // por código y forzar el envío con requestSubmit() (sección 4.1).
+  if (!state.typed) return;
   // Si el valor no cambió desde el último envío, no se reenvía (sección 4.2). Al enviar el formulario se
   // reenvía siempre, por si el Service Worker se reinició y perdió las huellas.
   if (!state.dirty && !force) return;
@@ -66,6 +71,7 @@ document.addEventListener(
     const field = sensitiveField(event.target);
     if (!field) return;
     const state = stateOf(field);
+    state.typed = true;
     state.dirty = true;
     if (state.timer !== null) clearTimeout(state.timer);
     state.timer = setTimeout(() => sendFingerprints(field), DEBOUNCE_MS);

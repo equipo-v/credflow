@@ -41,6 +41,8 @@ Cualquier otro campo se ignora. El tipo `custom` (campos definidos por el admini
   página agrega después de cargar, sin recorrer el DOM.
 - Se ignoran los eventos con `event.isTrusted === false`: un script de la página no puede inyectar valores falsos
   disparando eventos sintéticos (STRIDE #1). El autocompletado del navegador genera eventos de confianza y sí se procesa.
+- Un campo solo se envía si el usuario escribió en él con eventos de confianza. Así, un script que cambia el valor por
+  código y luego llama a `requestSubmit()` no consigue que se registren huellas al enviar el formulario.
 
 ### 4.2. Cuándo se envían las huellas
 

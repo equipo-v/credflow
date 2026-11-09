@@ -45,8 +45,9 @@ type TabEventsResponse = { events: FlowEvent[] };
   validado con una expresión regular). Solo afecta a qué pestaña se consulta; la respuesta sigue limitada a páginas de
   la propia extensión.
 - El Service Worker **solo responde** si el mensaje viene de una página de la propia extensión: `sender.id` es el de la
-  extensión, `sender.tab` no existe y `sender.url` empieza por `chrome-extension://<id de la extensión>/`. Un content
-  script (que sí tiene `sender.tab`) no puede pedir los eventos de otras pestañas.
+  extensión y `sender.url` empieza por `chrome-extension://<id de la extensión>/`. Un content script siempre envía con
+  la URL de la página web en la que corre, así que no puede pedir los eventos de otras pestañas. No se usa la ausencia
+  de `sender.tab` como criterio: una página de la extensión abierta en una pestaña también lo tiene.
 - El mensaje se valida con un esquema estricto: exactamente `kind` y `tabId`, y `tabId` entero mayor o igual que 0.
 - Respuesta: los eventos de esa pestaña, del más reciente al más antiguo.
 
@@ -88,8 +89,8 @@ type TabEventsResponse = { events: FlowEvent[] };
 - **CA-U2** El texto del ícono cuenta solo los eventos `critical` y `high`; muestra `"99+"` a partir de 100; el color es
   rojo si hay algún `critical` y ámbar si solo hay `high`.
 - **CA-U3** El validador de `GET_TAB_EVENTS` rechaza campos adicionales y `tabId` negativos o no enteros.
-- **CA-U4** El Service Worker no responde a `GET_TAB_EVENTS` si el remitente tiene `sender.tab` o si su `sender.url` no
-  es de la extensión.
+- **CA-U4** El Service Worker no responde a `GET_TAB_EVENTS` si `sender.url` no es una página de la propia extensión
+  (por ejemplo, un content script con la URL de una página web).
 - **CA-U5** La función que convierte un evento en los textos de una fila devuelve los textos de la tabla de la sección 5
   y nunca incluye campos fuera del contrato.
 - **CA-U6 (E2E)** En el escenario de robo del laboratorio, el ícono de la pestaña muestra "1" en rojo y el popup muestra

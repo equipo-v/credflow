@@ -1,0 +1,10 @@
+body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #f5f6f8; color: #1f2937; }
+.aviso { margin: 0; padding: 8px 16px; background: #fff4e5; color: #8a4b00; text-align: center; }
+main { max-width: 420px; margin: 40px auto; padding: 24px; background: #fff; border-radius: 10px; box-shadow: 0 1px 4px #0002; }
+h1 { margin-top: 0; }
+.escenario strong { color: #b3261e; }
+.descripcion { color: #6b7280; }
+label { display: block; margin: 12px 0; }
+input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px; font: inherit; }
+button { padding: 10px 16px; font: inherit; background: #1a73e8; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+.resultado { color: #1e6b34; }
