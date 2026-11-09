@@ -17,3 +17,14 @@ export function siteOfUrl(url: string | undefined): string | null {
     return null;
   }
 }
+
+/**
+ * Host de bucle local: localhost, *.localhost, 127.0.0.0/8 o [::1] (sección 4.4).
+ * El tráfico a estos hosts no sale del equipo, como los orígenes "potencialmente confiables" de W3C Secure Contexts.
+ */
+export function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (host === "[::1]") return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}

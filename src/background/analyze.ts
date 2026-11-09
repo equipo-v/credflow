@@ -3,7 +3,7 @@
 import type { Encoding, FieldType, FlowEvent, Severity, Verdict } from "../shared/types";
 import type { ActiveFingerprint } from "./fingerprint-store";
 import { readRequestBody, type RequestBodyLike } from "./request-body";
-import { siteOfUrl } from "./site";
+import { isLoopbackHost, siteOfUrl } from "./site";
 
 export type RequestInfo = {
   tabId: number;
@@ -48,8 +48,9 @@ function urlText(url: string): string {
   }
 }
 
-function isInsecureScheme(protocol: string): boolean {
-  return protocol === "http:" || protocol === "ws:";
+/** Canal sin cifrar: http: o ws: hacia un host que no es de bucle local (sección 4.4, regla 1). */
+function isInsecureChannel(url: URL): boolean {
+  return (url.protocol === "http:" || url.protocol === "ws:") && !isLoopbackHost(url.hostname);
 }
 
 /**
@@ -81,7 +82,7 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
   const pageSite = siteOfUrl(request.initiator) ?? ctx.lastKnownPageSite ?? "";
   const authorized = ctx.authorizedSites.has(destinationSite);
   const thirdParty = destinationSite !== pageSite && !authorized;
-  const insecure = isInsecureScheme(destination.protocol);
+  const insecure = isInsecureChannel(destination);
 
   let verdict: Verdict;
   let severity: Severity;

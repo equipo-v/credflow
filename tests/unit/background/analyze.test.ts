@@ -275,3 +275,51 @@ describe("analyzeRequest: cuerpos grandes y opacos", () => {
     expect(event).toBeNull();
   });
 });
+
+describe("analyzeRequest: hosts de bucle local (CA-20)", () => {
+  const loopback = [
+    "http://localhost:8124/recibir",
+    "http://127.0.0.1:8124/recibir",
+    "http://127.4.5.6/recibir",
+    "http://app.localhost/recibir",
+    "http://[::1]:8124/recibir",
+    "ws://localhost:8124/socket",
+  ];
+
+  it("un envío por http a un host de bucle local no es insecure_channel", () => {
+    for (const url of loopback) {
+      const event = analyzeRequest(
+        req({ url, initiator: "http://localhost:8124", requestBody: raw(PASSWORD) }),
+        ctx()
+      );
+      expect(event?.verdict, url).not.toBe("insecure_channel");
+    }
+  });
+
+  it("el mismo envío a un host que no es de bucle local sí es insecure_channel", () => {
+    for (const url of [
+      "http://tienda.lab:8124/recibir",
+      "http://localhost.evil.com/x",
+      "http://127.0.0.1.evil.com/x",
+    ]) {
+      const event = analyzeRequest(req({ url, requestBody: raw(PASSWORD) }), ctx());
+      expect(event?.verdict, url).toBe("insecure_channel");
+    }
+  });
+
+  it("en bucle local, la tienda y el dominio de métricas del laboratorio son sitios distintos", () => {
+    const event = analyzeRequest(
+      req({
+        url: "http://127.0.0.1:8124/recibir/beacon",
+        initiator: "http://localhost:8124",
+        requestBody: raw(btoa(PASSWORD)),
+      }),
+      ctx()
+    );
+    expect(event).toMatchObject({
+      verdict: "third_party",
+      pageSite: "localhost",
+      destinationSite: "127.0.0.1",
+    });
+  });
+});
