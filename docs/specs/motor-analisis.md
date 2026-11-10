@@ -21,7 +21,7 @@ Antes de implementar el resto, construir una extensión mínima que confirme que
 entrega `details.requestBody` (`formData` y `raw`) en una extensión Manifest V3 instalada en modo desarrollador.
 
 - Si funciona: continuar con esta especificación.
-- Si no funciona: **detener** y reportar a Claude Code; la capa de red debe rediseñarse.
+- Si no funciona: **detener** y reportarlo en el issue; la capa de red debe rediseñarse antes de continuar.
 
 Probar al menos: envío de formulario (`application/x-www-form-urlencoded`), `fetch` con cuerpo JSON
 y `navigator.sendBeacon` con texto.
