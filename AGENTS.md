@@ -63,7 +63,7 @@ Las pruebas de cada componente van en `tests/`.
 Lista cerrada. **Ninguna dependencia nueva sin aprobación escrita de una persona del equipo en el PR.**
 
 - En ejecución (se incluyen en la extensión): `tldts`. Ninguna otra.
-- Solo desarrollo: `typescript`, `vite`, `@crxjs/vite-plugin`, `vitest`, `playwright`, `@types/chrome`,
+- Solo desarrollo: `typescript`, `vite`, `@crxjs/vite-plugin`, `vitest`, `playwright`, `@types/chrome`, `@eslint/js`,
   `eslint`, `typescript-eslint`, `eslint-plugin-no-unsanitized`, `prettier`.
 
 Antes de proponer un paquete, verifica que existe en el registro de npm con ese nombre exacto

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "authorizedProviders": {
+      "title": "Proveedores de inicio de sesión autorizados",
+      "description": "Dominios a los que CredFlow permite enviar credenciales sin alertar (por ejemplo, accounts.google.com). Se comparan por dominio registrable.",
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

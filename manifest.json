@@ -5,18 +5,35 @@
   "description": "Seguimiento y detección de fugas de credenciales y datos sensibles",
   "permissions": [
     "webRequest",
-    "storage",
-    "notifications",
-    "alarms"
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none'"
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
   },
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
+  },
+  "storage": {
+    "managed_schema": "managed-schema.json"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/bridge.ts"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "CredFlow",
+    "default_popup": "src/popup/popup.html"
   }
 }

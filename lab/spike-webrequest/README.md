@@ -34,3 +34,16 @@ El diseño de la Capa 1 especificado en `docs/specs/motor-analisis.md` **es viab
    - Activar el toggle de **Modo de desarrollador**.
    - Hacer clic en **Cargar descomprimida** y seleccionar la carpeta `lab/spike-webrequest`.
 3. Abrir `http://127.0.0.1:8765/index.html` y accionar las pruebas interactivas.
+
+## Prueba automatizada (17 casos)
+
+`lab/spike-webrequest/run.mjs` carga la extensión de `extension/` en Chromium con Playwright, sirve el sitio de
+`site/` y prueba 17 formas de enviar la contraseña ficticia. Encontró un punto ciego que la prueba manual no cubría:
+con cuerpos `Blob`, `File` y `ReadableStream`, Chrome entrega `requestBody.error` en lugar del contenido.
+
+```bash
+npx playwright install chromium   # solo la primera vez
+npm run spike:webrequest
+```
+
+Resultados y conclusiones: `docs/verificaciones/webrequest-requestbody.md`.

@@ -1,0 +1,23 @@
+# Verificación de cada cambio: dependencias sin vulnerabilidades conocidas (ASVS 14.2.1, SSDF PW.4.4),
+# lint con las reglas de seguridad de AGENTS.md, pruebas y build.
+name: Verificación
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify

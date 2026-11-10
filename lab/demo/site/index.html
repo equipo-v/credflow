@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tienda de laboratorio · CredFlow</title>
+    <link rel="stylesheet" href="/tienda.css" />
+  </head>
+  <body>
+    <p class="aviso">Laboratorio de CredFlow · datos ficticios · contraseña de prueba: <code>Prueba#2026</code></p>
+    <main>
+      <h1>Tienda Ejemplo</h1>
+      <p class="escenario">Escenario: <strong id="escenario"></strong></p>
+      <p id="descripcion" class="descripcion"></p>
+      <form id="login" method="POST" action="/recibir/login">
+        <label>Usuario <input name="usuario" type="text" autocomplete="username" /></label>
+        <label>Contraseña <input name="clave" type="password" autocomplete="current-password" /></label>
+        <button type="submit">Iniciar sesión</button>
+      </form>
+      <p id="resultado" class="resultado" role="status"></p>
+    </main>
+    <script src="/analytics.js"></script>
+  </body>
+</html>

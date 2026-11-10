@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "CredFlow spike webRequest",
+  "version": "0.0.1",
+  "permissions": ["webRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "sw.js" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
