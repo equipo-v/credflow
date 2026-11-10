@@ -6,6 +6,16 @@ hacia un tercero no autorizado o por un canal sin cifrar.
 Proyecto de aula del curso *Herramienta de Seguridad en Redes desde Cero* — Equipo V:
 Víctor Gómez Echeverri y Darwin Garcia Andrade.
 
+## Documentación
+
+| Documento | Contenido |
+| --- | --- |
+| [Manual de uso](docs/manual/manual-de-uso.md) | Instalación, uso, cómo leer las alertas, configuración y demo del laboratorio. |
+| [Arquitectura](docs/arquitectura.md) | Cómo funciona la extensión: componentes, recorrido de un dato y reglas de clasificación. |
+| [Índice completo](docs/README.md) | Especificaciones, modelo STRIDE y verificaciones técnicas. |
+
+Versión en Word del manual y de la arquitectura: [`docs/word/`](docs/word/).
+
 ## Estructura
 
 ```
