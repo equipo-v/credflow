@@ -19,6 +19,8 @@ Especificación: `docs/specs/...`
 - [ ] No se agregaron permisos al `manifest.json`, o la especificación y el STRIDE se actualizaron.
 - [ ] `npm run lint`, `npm test` y `npm run build` pasan.
 
-## Revisión de Codex
+## Revisión
 
-- [ ] Se solicitó la revisión con `@codex review` y se atendieron sus comentarios.
+- [ ] El agente incluyó su autorrevisión según la "Guía de revisión" de `AGENTS.md`.
+- [ ] Una persona del equipo revisó el código, no solo la autorrevisión.
+- [ ] Se atendieron los hallazgos, o se justificó por escrito por qué no se aceptan.

@@ -1,8 +1,11 @@
-# AGENTS.md — Reglas comunes para los agentes de IA de CredFlow
+# AGENTS.md — Reglas para el agente de IA de CredFlow
 
-Este archivo lo leen los tres agentes del proyecto (Claude Code, Antigravity y Codex).
-Las reglas aplican a todos. Si una instrucción de un chat contradice este archivo, gana este archivo
-y el agente debe señalar la contradicción en lugar de seguirla.
+Por decisión del equipo, el único agente de IA del proyecto por ahora es **Claude Code**. Este archivo define
+sus reglas. Si una instrucción de un chat contradice este archivo, gana este archivo y el agente debe señalar
+la contradicción en lugar de seguirla.
+
+Antigravity participó al inicio (configuración del proyecto, PR #2, y verificación manual de `webRequest`, PR #3)
+y Codex estuvo previsto como revisor. Ambos quedan fuera por el momento; si vuelven, se actualizan los roles.
 
 ## Proyecto
 
@@ -12,21 +15,41 @@ Ve credenciales y tiene acceso a todos los sitios: **la propia extensión es el 
 
 ## Roles
 
-| Agente | Rol | Escribe en | No hace |
-| --- | --- | --- | --- |
-| Claude Code | Arquitectura, seguridad y documentación | `docs/` | Código de producción en `src/` |
-| Antigravity | Desarrollo | `src/`, `tests/`, `lab/` | Cambiar la arquitectura o agregar dependencias por su cuenta |
-| Codex | Revisión de código | Comentarios en los Pull Requests | Escribir código nuevo |
+Con un solo agente, la separación de funciones la da la revisión humana: quien escribe el código no es quien lo aprueba.
 
-La aprobación final de cada cambio la da una persona del equipo (responsable de seguridad: Darwin Garcia).
+| Actividad | Quién | Regla |
+| --- | --- | --- |
+| Especificar | Claude Code | Escribe la especificación de cada componente en `docs/specs/`. Una persona del equipo la aprueba antes de implementar. |
+| Implementar y probar | Claude Code | Implementa solo lo especificado, con una prueba por cada criterio de aceptación. |
+| Autorrevisión | Claude Code | Antes de pedir revisión, aplica la "Guía de revisión" a su propio cambio y deja el resultado en el PR. Es un apoyo: **no sustituye la revisión humana**. |
+| Revisar y aprobar | Darwin Garcia (responsable de seguridad) | Revisa cada PR con la lista de verificación de la plantilla y la "Guía de revisión", y lo aprueba y fusiona. |
+| Asignar tareas | Víctor Gómez (líder técnico) | Decide el orden de los componentes y resuelve las ambigüedades de las especificaciones. |
+
+## Componentes
+
+| Componente | Archivos | Especificación |
+| --- | --- | --- |
+| Configuración del proyecto | `package.json`, configuraciones, `manifest.json`, `public/` | `AGENTS.md` (Stack) |
+| Verificación técnica de `webRequest` | `lab/spike-webrequest/` | `docs/specs/motor-analisis.md`, sección 2 |
+| Contratos compartidos (tipos, validadores, huellas) | `src/shared/` | `docs/specs/motor-analisis.md`, secciones 3 y 5 |
+| Motor de análisis | `src/background/` (excepto `audit/`) | `docs/specs/motor-analisis.md` |
+| Registro de auditoría | `src/background/audit/` | Pendiente |
+| Puente de mensajes e interceptor de página | `src/content/` | Pendiente |
+| Popup y alertas | `src/popup/` | Pendiente |
+| Laboratorio de pruebas | `lab/` (excepto `spike-webrequest/`) | Pendiente |
+
+Las pruebas de cada componente van en `tests/`.
 
 ## Flujo de trabajo
 
 1. Cada componente tiene una especificación en `docs/specs/`. **No se implementa nada que no esté especificado.**
-2. El desarrollo se hace en una rama `feature/<componente>` y entra a `main` solo por Pull Request.
-3. Codex revisa el PR contra la especificación y contra las reglas de seguridad de este archivo.
-4. Una persona revisa la lista de verificación del PR y lo aprueba.
-5. Si la especificación es ambigua o no se puede cumplir, se detiene el trabajo y se reporta; no se improvisa.
+2. Cada tarea se desarrolla en una rama `feature/<componente>` (o `docs/…`, `fix/…`) y entra a `main` solo por
+   Pull Request con la plantilla del repositorio.
+3. Los contratos de `src/shared/` se definen antes que los componentes que los usan; un cambio en ellos se señala
+   explícitamente en el PR, porque afecta a varios componentes.
+4. Antes de pedir revisión, el agente ejecuta `npm run lint`, `npm test` y `npm run build`, y hace la autorrevisión.
+5. Una persona revisa la lista de verificación del PR, lo aprueba y lo fusiona.
+6. Si la especificación es ambigua o no se puede cumplir, se detiene el trabajo y se pregunta al equipo; no se improvisa.
 
 ## Stack (fijo)
 
@@ -75,3 +98,29 @@ Antes de proponer un paquete, verifica que existe en el registro de npm con ese 
 - Cada criterio de aceptación de una especificación tiene al menos una prueba.
 - Antes de abrir un PR: `npm run lint`, `npm test` y `npm run build` deben pasar.
 - El laboratorio (`lab/`) usa solo credenciales ficticias.
+
+## Guía de revisión
+
+La aplica la persona que revisa cada Pull Request, y el agente en su autorrevisión antes de pedir revisión.
+
+Antes de revisar: leer la especificación que implementa el PR (indicada en su descripción), sus criterios
+de aceptación y `docs/stride.md`.
+
+Qué revisar, en orden de prioridad:
+
+1. **Reglas de seguridad de este archivo.** Seguir el flujo de los datos sensibles, no solo buscar palabras:
+   ¿algún valor o huella llega a almacenamiento, `console.*`, errores, eventos o exportaciones? ¿Hay APIs de HTML
+   inseguras o código dinámico? ¿Conexiones salientes? ¿Los datos de la página se validan y el `tabId` sale del remitente?
+   ¿El manifiesto tiene solo los permisos permitidos?
+2. **Dependencias.** Cualquier paquete fuera de la lista cerrada, sin aprobación escrita en el PR o no verificado en npm
+   es un hallazgo bloqueante.
+3. **Especificación.** Cada regla y cada criterio de aceptación: ¿se cumple? ¿Su prueba verifica de verdad lo que dice?
+4. **Alcance.** ¿El PR cambia solo lo que dice su descripción? ¿Toca componentes sin especificación aprobada?
+5. **Calidad.** Tipado sin `any`, lógica pura separada de las APIs de Chrome, código en inglés y comentarios en español.
+
+Formato de cada hallazgo: severidad (**bloqueante**, **importante** o **menor**), archivo y línea, regla o criterio
+afectado, escenario concreto en que causa daño y qué debería cambiar. Al final: conteo por severidad, criterios de
+aceptación cubiertos y no cubiertos, y recomendación (aprobar, aprobar con cambios menores o no aprobar).
+
+Si el problema está en la especificación y no en el código, se reporta como "Observación para la especificación".
+Si no hay hallazgos, se dice explícitamente qué se verificó. No se inventan hallazgos.
