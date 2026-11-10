@@ -15,11 +15,17 @@ demo; el grafo de flujos, las notificaciones del sistema y el panel de administr
 
 ## 2. Eventos por pestaña (Service Worker)
 
-- `src/background/tab-events.ts` se suscribe a `subscribeToFlowEvents` y guarda en memoria, por pestaña, los
-  **últimos 50** `FlowEvent`. Al llegar al límite descarta el más antiguo.
-- Solo guarda `FlowEvent`, que por contrato no contiene valores, huellas, rutas ni consultas.
-- Los eventos de una pestaña se borran cuando la pestaña se cierra. Si el Service Worker se reinicia, se pierden: la
-  persistencia es tarea del Registro de auditoría.
+- `src/background/tab-events.ts` se suscribe a `subscribeToFlowEvents` y guarda, por pestaña, los **últimos 50**
+  `FlowEvent` y el resumen de alertas (número de alertas y si hubo alguna crítica). Al llegar al límite descarta el
+  evento más antiguo; el resumen no se reduce.
+- Los guarda en **`chrome.storage.session`** (clave `tab:<tabId>`), además de en memoria, para que **sobrevivan a los
+  reinicios del Service Worker**: Chrome lo detiene tras unos 30 s sin actividad. `storage.session` vive en la memoria
+  del navegador, no se escribe en disco, se borra al cerrar Chrome y, con su nivel de acceso predeterminado, los
+  content scripts no pueden leerlo. Solo contiene `FlowEvent`, que por contrato no tiene valores, huellas, rutas ni
+  consultas, así que cumple la regla 1 de `AGENTS.md`.
+- Lo leído de `storage.session` se valida antes de usarse; si no es válido, se descarta.
+- Los eventos de una pestaña se borran cuando la pestaña se cierra. Al cerrar Chrome se borran todos. La persistencia
+  en disco sigue siendo tarea del Registro de auditoría.
 
 ## 3. Alerta en el ícono
 
@@ -29,6 +35,9 @@ demo; el grafo de flujos, las notificaciones del sistema y el panel de administr
 - Color del fondo (`chrome.action.setBadgeBackgroundColor`): rojo `#D93025` si hay al menos un evento `critical`;
   ámbar `#E37400` si solo hay `high`.
 - Los eventos con severidad `none` (mismo sitio, proveedor autorizado) no cambian el ícono.
+- Chrome borra el texto del ícono de una pestaña cuando esta navega a otra página. Por eso el ícono **se vuelve a
+  aplicar** desde el resumen guardado cada vez que la pestaña termina de cargar (`chrome.tabs.onUpdated` con
+  `status: "complete"`). Ese evento no requiere el permiso `tabs`, porque solo se usan el `tabId` y el estado.
 
 ## 4. Contrato entre el popup y el Service Worker
 
@@ -68,6 +77,10 @@ type TabEventsResponse = { events: FlowEvent[] };
 | `same_site` | Enviada al mismo sitio | ✓ normal (verde) |
 
 - Sin eventos: el texto "Sin flujos sensibles en esta pestaña".
+- Al final, una sección plegable **"Cómo probar CredFlow"** (`<details>`), con texto fijo en el HTML, para quien pruebe
+  la extensión sin conocer el proyecto: qué campos vigila, el mínimo de 6 caracteres, qué envíos detecta, qué
+  significa cada color, cómo habilitar las páginas abiertas como archivo (`file://`), que en `localhost` el HTTP no se
+  marca como inseguro y que CredFlow detecta pero no bloquea.
 - Si la respuesta no llega o falla: el texto genérico "No se pudo cargar la información", sin detalles técnicos.
 - Todo el texto se inserta con `textContent`; no se usa `innerHTML` ni se cargan recursos externos. La CSP del manifiesto
   ya lo impide.
@@ -97,6 +110,12 @@ type TabEventsResponse = { events: FlowEvent[] };
   una fila "Enviada a un tercero no autorizado" con el destino de métricas.
 - **CA-U7** `src/popup/` no usa `innerHTML`, `outerHTML`, `insertAdjacentHTML` ni `document.write` (lo comprueba
   `npm run lint`), y una prueba verifica que `popup.html` no carga scripts ni estilos de otro origen.
+
+- **CA-U8 (E2E)** Si el Service Worker se detiene después de detectar un robo, el popup sigue mostrando el evento.
+- **CA-U9 (E2E)** Tras un robo seguido de una navegación de la pestaña a otra página, el ícono sigue mostrando la alerta.
+- **CA-U10** `popup.html` contiene la sección "Cómo probar CredFlow" con el mínimo de 6 caracteres y la instrucción
+  para habilitar `file://`.
+- **CA-U11** El validador de lo leído de `storage.session` descarta datos con forma incorrecta.
 
 ## 8. Fuera de alcance
 

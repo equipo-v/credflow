@@ -38,6 +38,7 @@ La tienda (`/`) carga el formulario y un `analytics.js` cuyo comportamiento se e
 | `robo` | Al enviar el formulario, manda la contraseña en Base64 con `navigator.sendBeacon` a Métricas. | `third_party`, crítica |
 | `robo-blob` | Igual, pero dentro de un `Blob` con `fetch`. | `opaque_body`, alta |
 | `url` | Manda la contraseña en la consulta de la URL a la propia tienda. | `credential_in_url`, alta |
+| `robo-navega` | Como `robo`, pero el formulario se envía de verdad y la tienda redirige a `/bienvenida`, como un sitio real. | `third_party`, crítica; el ícono sigue en rojo tras navegar |
 
 La contraseña ficticia del laboratorio es `Prueba#2026`. La página muestra en grande el escenario activo y un texto
 que aclara que es un laboratorio con datos ficticios.
@@ -50,7 +51,7 @@ que aclara que es un laboratorio con datos ficticios.
   cargada mediante Playwright y recorre cada escenario escribiendo la contraseña **con eventos de teclado reales**.
   Comprueba el ícono, el popup y, cuando aplique, que no hubo evento. Guarda una captura de pantalla del popup por
   escenario en `test-results/` como evidencia.
-- Las pruebas E2E cubren CA-13 y CA-17 del Motor, CA-P3 a CA-P7 del Puente y CA-U6 y CA-U7 del Popup.
+- Las pruebas E2E cubren CA-13 y CA-17 del Motor, CA-P3 a CA-P8 del Puente y CA-U6 a CA-U9 del Popup.
 
 ## 5. Cambio necesario en el Motor: direcciones de bucle local
 

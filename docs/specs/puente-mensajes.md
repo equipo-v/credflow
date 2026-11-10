@@ -51,6 +51,13 @@ Cualquier otro campo se ignora. El tipo `custom` (campos definidos por el admini
   o cuando se envía su formulario (`submit`, en fase de captura). Esto evita que un envío rápido ocurra antes de que el
   Motor tenga las huellas.
 - Si el valor no cambió desde el último envío de ese campo, no se reenvía.
+- **Refresco antes de envíos por JavaScript:** las huellas caducan a los 30 s en el Motor. Si el usuario escribe y
+  tarda en actuar, un envío hecho por un script al pulsar un botón (sin formulario) ya no se detectaría. Por eso, ante
+  un clic de confianza (`pointerdown` en fase de captura, `isTrusted`) en cualquier parte de la página, se reenvían las
+  huellas de los campos sensibles del documento en los que el usuario escribió, si su último envío fue hace más de
+  **10 s**. El clic ocurre antes de que la página procese su manejador, así que el Motor recibe las huellas antes del
+  envío.
+- Por campo solo se guarda la hora del último envío (un número), nunca el valor.
 
 ### 4.3. Contenido del mensaje
 
@@ -98,6 +105,11 @@ de dependencias permitidas.
   *Por verificar:* que el mensaje del Puente llegue al Service Worker antes que la petición del formulario. Si la
   prueba muestra que no siempre ocurre, se reporta al equipo antes de continuar.
 - **CA-P7 (E2E)** Escribir en un campo de texto normal no envía ningún mensaje.
+
+- **CA-P8 (E2E)** Si el usuario escribe la contraseña, espera más de 30 s y pulsa un botón que la envía por
+  JavaScript a otro sitio, el envío se detecta.
+- **CA-P9** La decisión de reenviar (`shouldRefresh`) es verdadera solo si hubo escritura real y pasaron más de 10 s desde
+  el último envío.
 
 ## 8. Fuera de alcance
 
