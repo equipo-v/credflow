@@ -42,6 +42,8 @@ npm run lab            # inicia la tienda de laboratorio en http://localhost:812
 2. Abre un escenario, por ejemplo `http://localhost:8124/?escenario=robo`, escribe la contraseña ficticia
    `Prueba#2026` y pulsa **Iniciar sesión**.
 3. El ícono de CredFlow se pone rojo; al abrirlo se ve el flujo hacia el dominio de métricas.
+4. Para ver el robo desde el lado del atacante, mira la terminal de `npm run lab` o abre el panel del atacante en
+   `http://127.0.0.1:8124/panel`. Solo se muestra la contraseña ficticia; cualquier otro valor aparece oculto.
 
 Escenarios: `limpio`, `robo`, `robo-blob` y `url` (`docs/specs/laboratorio.md`).
 

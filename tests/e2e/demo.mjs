@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { PORT, startLab } from "../../lab/demo/server.mjs";
+import { describeArrival, LAB_PASSWORD, PORT, startLab } from "../../lab/demo/server.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const extensionPath = path.join(root, "dist");
@@ -205,6 +205,26 @@ await check("Escribir solo en un campo de texto normal no genera eventos (CA-P7)
   const { rows } = await popupFor(await tabIdOf(page.url()), "solo-usuario");
   assert.equal(rows.length, 0, JSON.stringify(rows));
   await page.close();
+});
+
+await check("La vista del atacante solo muestra la contraseña ficticia (CA-L5)", async () => {
+  const b64 = (text) => Buffer.from(text).toString("base64");
+  const arrival = (host, body, search = "") =>
+    describeArrival({ host, pathname: "/recibir/beacon", search, body });
+  const fake = arrival(`127.0.0.1:${PORT}`, `c=${b64(LAB_PASSWORD)}`);
+  assert.equal(fake.stolen, true);
+  assert.match(fake.summary, /Prueba#2026 \(en Base64\)/);
+  assert.match(arrival(`localhost:${PORT}`, "", "?clave=Prueba%232026").summary, /en la URL/);
+  for (const real of ["MiClaveReal!99", "contraseña-de-verdad"]) {
+    for (const body of [real, `c=${b64(real)}`, `clave=${encodeURIComponent(real)}`]) {
+      const result = arrival(`127.0.0.1:${PORT}`, body);
+      assert.equal(result.stolen, false);
+      assert.ok(
+        !result.summary.includes(real),
+        "no debe mostrar una contraseña que no sea la ficticia"
+      );
+    }
+  }
 });
 
 await context.close();

@@ -24,7 +24,7 @@ CredFlow considera distintos:
 | Métricas | `http://127.0.0.1:8124` | Dominio del atacante que recibe la credencial robada |
 
 El servidor responde `204` a cualquier `POST` a `/recibir/*`, permite CORS para que el envío entre sitios funcione y
-**no guarda ni muestra** lo que recibe.
+**no guarda en disco** lo que recibe. Lo que muestra está limitado por la sección 6.
 
 Ambos sitios usan HTTP sin cifrar en la dirección de bucle local. Ver la sección 5 sobre cómo afecta al veredicto.
 
@@ -65,23 +65,40 @@ El escenario de canal sin cifrar (`insecure_channel`) se prueba en las pruebas a
 no es de bucle local (`http://tienda.lab:8124`), redirigido a `127.0.0.1` con la opción de Chromium
 `--host-resolver-rules`. En la demo manual es opcional y requiere agregar `tienda.lab` al archivo `hosts`.
 
-## 6. Controles
+## 6. Vista del atacante
+
+Para que la demo muestre el robo desde el lado del atacante, `npm run lab` activa por defecto una vista de lo que recibe
+cada sitio (`--silencioso` la desactiva; las pruebas E2E la usan desactivada):
+
+- **Terminal:** una línea por cada petición a `/recibir/*`, con la hora, quién la recibe (`tienda` o `ATACANTE`, según
+  si el host es `localhost` o `127.0.0.1`), el canal (`login`, `beacon`, `blob`, `consulta`) y el dato.
+- **Panel del atacante:** `http://127.0.0.1:8124/panel`, una página que se recarga cada 2 s y lista las últimas 20
+  credenciales que llegaron al dominio de métricas. Se guarda solo en memoria y se vacía al detener el servidor. El
+  contenido se escapa antes de insertarlo en el HTML.
+- **Solo se muestra la contraseña ficticia.** El servidor busca `Prueba#2026` en claro, codificada para URL o en
+  Base64, e indica cómo llegó. Cualquier otro valor se reemplaza por "datos recibidos (ocultos: no contienen la
+  contraseña del laboratorio)". Así, si alguien escribe por error una contraseña real, no aparece en pantalla. El
+  usuario nunca se muestra.
+
+## 7. Controles
 
 | Control | Referencia |
 | --- | --- |
 | Solo credenciales ficticias | AGENTS.md (Pruebas) |
 | El servidor solo escucha en `127.0.0.1` y `localhost`, no en la red local | Evita exponer el laboratorio a otros equipos |
-| El servidor no guarda ni muestra lo que recibe | ASVS 4.0.3 V7.1.1 |
+| El servidor no guarda en disco lo que recibe y solo muestra la contraseña ficticia; cualquier otro valor se oculta | ASVS 4.0.3 V7.1.1 |
 | Sin dependencias nuevas: servidor con `node:http`, pruebas con `playwright` (ya permitido) | AGENTS.md (Dependencias) |
 
-## 7. Criterios de aceptación
+## 8. Criterios de aceptación
 
 - **CA-L1** `npm run lab` inicia el servidor solo en interfaces de bucle local y responde en las dos URLs.
 - **CA-L2** Cada escenario de la sección 3 produce exactamente el veredicto esperado y ningún otro evento crítico.
 - **CA-L3** `npm run test:e2e` termina con éxito en un equipo sin conexión a Internet y deja una captura por escenario.
 - **CA-L4** Ningún archivo del laboratorio ni de las pruebas contiene una credencial real.
+- **CA-L5** La vista del atacante muestra `Prueba#2026` cuando llega en claro, codificada para URL o en Base64, y oculta
+  cualquier otro valor; el panel solo lista lo recibido por el dominio de métricas.
 
-## 8. Fuera de alcance
+## 9. Fuera de alcance
 
 - HTTPS con certificados en el laboratorio.
 - Escenarios del interceptor en el mundo `MAIN` y de keyloggers.

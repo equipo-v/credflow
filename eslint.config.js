@@ -53,6 +53,7 @@ export default tseslint.config(
         console: "readonly",
         process: "readonly",
         URL: "readonly",
+        Buffer: "readonly",
         // Código que se evalúa dentro del navegador con page.evaluate y worker.evaluate.
         chrome: "readonly",
         document: "readonly",
