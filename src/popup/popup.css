@@ -112,3 +112,29 @@ h1 {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+
+.help {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.help summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.help ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.help li {
+  margin-bottom: 6px;
+}
+
+.help code {
+  font-size: 12px;
+}

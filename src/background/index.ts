@@ -13,12 +13,12 @@ import { ErrorMonitor } from "./error-monitor";
 import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./flow-events";
 import { parseManagedConfig, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
-import { badgeFor, TabEventLog } from "./tab-events";
+import { badgeFor, type AlertSummary } from "./tab-events";
+import { eventsOf, forgetTab, recordEvent, summaryOf } from "./tab-store";
 
 const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
 const errors = new ErrorMonitor();
-const tabEvents = new TabEventLog();
 let config: ManagedConfig = parseManagedConfig(undefined);
 
 /** Registra un error sin ningún dato de lo que falló y avisa si se repiten (sección 4.6). */
@@ -43,13 +43,27 @@ async function loadManagedConfig(): Promise<void> {
 void loadManagedConfig();
 
 // Eventos por pestaña y alerta en el ícono (docs/specs/popup-alertas.md, secciones 2 y 3).
-subscribeToFlowEvents((event) => {
-  const badge = badgeFor(tabEvents.add(event));
+function applyBadge(tabId: number, summary: AlertSummary): void {
+  const badge = badgeFor(summary);
   if (!badge) return;
-  void chrome.action.setBadgeText({ tabId: event.tabId, text: badge.text }).catch(() => undefined);
-  void chrome.action
-    .setBadgeBackgroundColor({ tabId: event.tabId, color: badge.color })
-    .catch(() => undefined);
+  void chrome.action.setBadgeText({ tabId, text: badge.text }).catch(() => undefined);
+  void chrome.action.setBadgeBackgroundColor({ tabId, color: badge.color }).catch(() => undefined);
+}
+
+subscribeToFlowEvents((event) => {
+  recordEvent(event).then(
+    (summary) => applyBadge(event.tabId, summary),
+    () => recordError()
+  );
+});
+
+// Chrome borra el texto del ícono cuando la pestaña navega: se vuelve a aplicar al terminar de cargar (sección 3).
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== "complete") return;
+  summaryOf(tabId).then(
+    (summary) => applyBadge(tabId, summary),
+    () => undefined
+  );
 });
 
 chrome.storage.onChanged.addListener((_changes, areaName) => {
@@ -62,9 +76,15 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const request = parseGetTabEvents(message);
     if (request !== null) {
       if (!isExtensionPageSender(sender, chrome.runtime.id)) return;
-      const response: TabEventsResponse = { events: tabEvents.list(request.tabId) };
-      sendResponse(response);
-      return;
+      // Respuesta asíncrona: los eventos pueden tener que leerse de chrome.storage.session.
+      eventsOf(request.tabId).then(
+        (events) => {
+          const response: TabEventsResponse = { events };
+          sendResponse(response);
+        },
+        () => sendResponse({ events: [] } satisfies TabEventsResponse)
+      );
+      return true;
     }
     const tabId = trustedSenderTabId(sender, chrome.runtime.id);
     if (tabId === null) return;
@@ -117,5 +137,5 @@ chrome.webRequest.onBeforeRequest.addListener(
 chrome.tabs.onRemoved.addListener((tabId) => {
   store.clearTab(tabId);
   lastPageSite.delete(tabId);
-  tabEvents.clear(tabId);
+  void forgetTab(tabId);
 });

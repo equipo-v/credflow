@@ -12,6 +12,41 @@
     </header>
     <p id="status" class="status" role="status"></p>
     <ol id="events" class="events" aria-label="Flujos de credenciales detectados"></ol>
+    <details class="help">
+      <summary>Cómo probar CredFlow</summary>
+      <ul>
+        <li>
+          Vigila los campos de <strong>contraseña</strong> (<code>type="password"</code>) y de
+          <strong>tarjeta</strong> (<code>autocomplete="cc-number"</code> o <code>"cc-csc"</code>).
+        </li>
+        <li>
+          Usa contraseñas de <strong>al menos 6 caracteres</strong>: con menos no se analizan.
+        </li>
+        <li>
+          Alerta cuando la contraseña sale <strong>hacia otro dominio</strong>, por
+          <strong>HTTP sin cifrar</strong>, <strong>dentro de la URL</strong> o en un envío que
+          Chrome no deja inspeccionar (<code>Blob</code>), también si va codificada (Base64, URL,
+          hexadecimal o invertida).
+        </li>
+        <li>
+          Colores: <strong>✗ rojo</strong> crítica, <strong>! ámbar</strong> alta,
+          <strong>✓ verde</strong> envío normal al mismo sitio.
+        </li>
+        <li>
+          Páginas abiertas como archivo (<code>file://</code>): en
+          <code>chrome://extensions</code> → CredFlow → Detalles, activa «Permitir el acceso a las
+          URL del archivo».
+        </li>
+        <li>
+          En <code>localhost</code> y <code>127.0.0.1</code> el HTTP no se marca como inseguro: no
+          sale del equipo.
+        </li>
+        <li>
+          CredFlow <strong>detecta y avisa, pero no bloquea</strong>. Un bloqueador de anuncios
+          puede impedir que el envío llegue a su destino; CredFlow igual lo detecta.
+        </li>
+      </ul>
+    </details>
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

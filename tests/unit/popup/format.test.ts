@@ -66,3 +66,12 @@ describe("popup.html (CA-U7)", () => {
     for (const ref of refs) expect(ref.startsWith("./")).toBe(true);
   });
 });
+
+describe("popup.html: sección Cómo probar CredFlow (CA-U10)", () => {
+  it("incluye el mínimo de 6 caracteres y cómo habilitar file://", () => {
+    const text = html.replace(/\s+/g, " ");
+    expect(text).toContain("Cómo probar CredFlow");
+    expect(text).toContain("al menos 6 caracteres");
+    expect(text).toContain("Permitir el acceso a las URL del archivo");
+  });
+});

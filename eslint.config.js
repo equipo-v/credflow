@@ -58,6 +58,8 @@ export default tseslint.config(
         chrome: "readonly",
         document: "readonly",
         Event: "readonly",
+        fetch: "readonly",
+        btoa: "readonly",
       },
     },
     rules: { "no-console": "off" },

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { badgeFor, MAX_EVENTS_PER_TAB, TabEventLog } from "../../../src/background/tab-events";
+import {
+  badgeFor,
+  MAX_EVENTS_PER_TAB,
+  parseStoredTabState,
+  TabEventLog,
+} from "../../../src/background/tab-events";
 import type { FlowEvent, Severity } from "../../../src/shared/types";
 
 let counter = 0;
@@ -63,5 +68,53 @@ describe("badgeFor (CA-U2)", () => {
     expect(badgeFor(summary)?.text).toBe("99");
     summary = log.add(event(1, "high"));
     expect(badgeFor(summary)).toEqual({ text: "99+", color: "#E37400" });
+  });
+});
+
+describe("parseStoredTabState (CA-U11)", () => {
+  it("restaura un estado válido", () => {
+    const e = event(7, "critical");
+    const state = parseStoredTabState({ events: [e], summary: { alerts: 1, critical: true } }, 7);
+    expect(state).toEqual({ events: [e], summary: { alerts: 1, critical: true } });
+  });
+
+  it("descarta formas incorrectas", () => {
+    for (const raw of [
+      undefined,
+      null,
+      "texto",
+      [],
+      { events: "x", summary: { alerts: 1, critical: true } },
+      { events: [], summary: { alerts: -1, critical: true } },
+      { events: [], summary: { alerts: 1.5, critical: false } },
+      { events: [], summary: { alerts: 1, critical: "sí" } },
+      { events: [] },
+    ]) {
+      expect(parseStoredTabState(raw, 7)).toBeNull();
+    }
+  });
+
+  it("descarta los eventos con forma incorrecta o de otra pestaña", () => {
+    const good = event(7, "high");
+    const state = parseStoredTabState(
+      {
+        events: [good, { ...good, verdict: "inventado" }, { ...good, tabId: 8 }, { id: 1 }, "x"],
+        summary: { alerts: 5, critical: false },
+      },
+      7
+    );
+    expect(state?.events).toEqual([good]);
+    expect(state?.summary.alerts).toBe(5);
+  });
+
+  it("snapshot y restore conservan los eventos y el resumen", () => {
+    const log = new TabEventLog();
+    log.add(event(3, "high"));
+    log.add(event(3, "critical"));
+    const snapshot = log.snapshot(3);
+    const other = new TabEventLog();
+    if (snapshot) other.restore(3, snapshot);
+    expect(other.list(3)).toEqual(log.list(3));
+    expect(other.summary(3)).toEqual({ alerts: 2, critical: true });
   });
 });

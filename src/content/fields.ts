@@ -27,3 +27,18 @@ export function buildRegisterMessage(
   if (fingerprints.length === 0) return null;
   return { kind: "REGISTER_FINGERPRINTS", fieldType, fingerprints };
 }
+
+/** Tiempo tras el cual un clic vuelve a enviar las huellas (sección 4.2): menor que su caducidad de 30 s. */
+export const REFRESH_AFTER_MS = 10_000;
+
+/**
+ * ¿Hay que reenviar las huellas de un campo ante un clic? Solo si el usuario escribió en él y su último envío
+ * fue hace más de REFRESH_AFTER_MS (o todavía no se envió).
+ */
+export function shouldRefresh(
+  state: { typed: boolean; lastSentAt: number | null },
+  now: number
+): boolean {
+  if (!state.typed) return false;
+  return state.lastSentAt === null || now - state.lastSentAt > REFRESH_AFTER_MS;
+}

@@ -13,7 +13,7 @@ export const PORT = 8124;
 export const LAB_PASSWORD = "Prueba#2026";
 const SITE = path.join(path.dirname(fileURLToPath(import.meta.url)), "site");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css" };
-const FILES = new Set(["index.html", "analytics.js", "tienda.css"]);
+const FILES = new Set(["index.html", "analytics.js", "tienda.css", "bienvenida.html"]);
 const MAX_BODY = 64 * 1024;
 const MAX_PANEL = 20;
 
@@ -93,11 +93,15 @@ function createHandler({ showStolen }) {
     const url = new URL(req.url ?? "/", "http://lab");
     if (req.method === "OPTIONS") return res.writeHead(204).end();
 
-    if (url.pathname.startsWith("/recibir/")) {
+    // Inicio de sesión "real" del escenario robo-navega: se registra como /recibir/login y redirige.
+    const isLogin = url.pathname === "/login" && req.method === "POST";
+    if (url.pathname.startsWith("/recibir/") || isLogin) {
+      const reply = () =>
+        isLogin ? res.writeHead(302, { Location: "/bienvenida.html" }).end() : res.writeHead(204).end();
       if (!showStolen) {
         // Sin la vista del atacante, el cuerpo se descarta sin leerlo.
         req.resume();
-        req.on("end", () => res.writeHead(204).end());
+        req.on("end", reply);
         return;
       }
       const chunks = [];
@@ -107,10 +111,10 @@ function createHandler({ showStolen }) {
         if (size <= MAX_BODY) chunks.push(chunk);
       });
       req.on("end", () => {
-        res.writeHead(204).end();
+        reply();
         const arrival = describeArrival({
           host: req.headers.host ?? "",
-          pathname: url.pathname,
+          pathname: isLogin ? "/recibir/login" : url.pathname,
           search: url.search,
           body: Buffer.concat(chunks).toString("utf8"),
         });
@@ -157,7 +161,7 @@ export async function startLab({ port = PORT, showStolen = false } = {}) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const showStolen = !process.argv.includes("--silencioso");
   await startLab({ showStolen });
-  const scenarios = ["limpio", "robo", "robo-blob", "url"];
+  const scenarios = ["limpio", "robo", "robo-blob", "url", "robo-navega"];
   console.log(`Laboratorio de CredFlow (contraseña ficticia: ${LAB_PASSWORD})\n`);
   for (const s of scenarios) console.log(`  ${s.padEnd(10)} http://localhost:${PORT}/?escenario=${s}`);
   console.log(`\n  Canal sin cifrar (requiere "127.0.0.1 tienda.lab" en el archivo hosts):`);
