@@ -9,6 +9,8 @@
   --high-bg: #fff4e5;
   --ok: #1e6b34;
   --ok-bg: #e8f5ec;
+  --info: #1a5fb4;
+  --info-bg: #e8f0fe;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +25,8 @@
     --high-bg: #3a3221;
     --ok: #81c995;
     --ok-bg: #22332a;
+    --info: #8ab4f8;
+    --info-bg: #1f2a3c;
   }
 }
 
@@ -101,6 +105,15 @@ h1 {
 
 .high .severity {
   color: var(--high);
+}
+
+.event.info {
+  border-left-color: var(--info);
+  background: var(--info-bg);
+}
+
+.info .severity {
+  color: var(--info);
 }
 
 .ok .severity {

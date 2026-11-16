@@ -161,7 +161,7 @@ export async function startLab({ port = PORT, showStolen = false } = {}) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const showStolen = !process.argv.includes("--silencioso");
   await startLab({ showStolen });
-  const scenarios = ["limpio", "robo", "robo-blob", "url", "robo-navega"];
+  const scenarios = ["limpio", "robo", "robo-blob", "url", "robo-navega", "cifrado", "cifrado-robo"];
   console.log(`Laboratorio de CredFlow (contraseña ficticia: ${LAB_PASSWORD})\n`);
   for (const s of scenarios) console.log(`  ${s.padEnd(10)} http://localhost:${PORT}/?escenario=${s}`);
   console.log(`\n  Canal sin cifrar (requiere "127.0.0.1 tienda.lab" en el archivo hosts):`);

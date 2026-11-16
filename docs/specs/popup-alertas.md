@@ -87,7 +87,8 @@ type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 - Al final, una sección plegable **"Cómo probar CredFlow"** (`<details>`), con texto fijo en el HTML, para quien pruebe
   la extensión sin conocer el proyecto: qué campos vigila, el mínimo de 6 caracteres, qué envíos detecta, qué
   significa cada color, cómo habilitar las páginas abiertas como archivo (`file://`), que en `localhost` el HTTP no se
-  marca como inseguro y que CredFlow detecta pero no bloquea.
+  marca como inseguro, que algunos sitios cifran la contraseña (aviso azul, o ámbar si va a otro dominio) y que
+  CredFlow detecta pero no bloquea.
 - Si la respuesta no llega o falla: el texto genérico "No se pudo cargar la información", sin detalles técnicos.
 - Todo el texto se inserta con `textContent`; no se usa `innerHTML` ni se cargan recursos externos. La CSP del manifiesto
   ya lo impide.

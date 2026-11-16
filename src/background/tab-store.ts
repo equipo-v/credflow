@@ -1,6 +1,7 @@
 // Persistencia de los eventos por pestaña en chrome.storage.session (docs/specs/popup-alertas.md, sección 2).
 // storage.session vive en la memoria del navegador: sobrevive a los reinicios del Service Worker, no se escribe en
 // disco y se borra al cerrar Chrome. Solo se guardan FlowEvent, que no contienen datos sensibles.
+import type { FieldType, TabEventsResponse } from "../shared/types";
 import type { FlowEvent } from "../shared/types";
 import { parseStoredTabState, TabEventLog, type AlertSummary } from "./tab-events";
 
@@ -50,10 +51,19 @@ export function recordEvent(event: FlowEvent): Promise<AlertSummary> {
   });
 }
 
-export function eventsOf(tabId: number): Promise<FlowEvent[]> {
+/** Eventos y campos vigilados de la pestaña, para el popup. */
+export function tabInfoOf(tabId: number): Promise<TabEventsResponse> {
   return serialized(async () => {
     await ensureLoaded(tabId);
-    return log.list(tabId);
+    return { events: log.list(tabId), watched: log.watched(tabId) };
+  });
+}
+
+/** Registra que el usuario escribió en un campo sensible de la pestaña. */
+export function recordWatched(tabId: number, fieldType: FieldType, site: string): Promise<void> {
+  return serialized(async () => {
+    await ensureLoaded(tabId);
+    if (log.markWatched(tabId, fieldType, site, new Date())) await save(tabId);
   });
 }
 

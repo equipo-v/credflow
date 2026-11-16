@@ -14,7 +14,7 @@ import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./fl
 import { parseManagedConfig, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
 import { badgeFor, type AlertSummary } from "./tab-events";
-import { eventsOf, forgetTab, recordEvent, summaryOf } from "./tab-store";
+import { forgetTab, recordEvent, recordWatched, summaryOf, tabInfoOf } from "./tab-store";
 
 const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
@@ -77,12 +77,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     if (request !== null) {
       if (!isExtensionPageSender(sender, chrome.runtime.id)) return;
       // Respuesta asíncrona: los eventos pueden tener que leerse de chrome.storage.session.
-      eventsOf(request.tabId).then(
-        (events) => {
-          const response: TabEventsResponse = { events };
-          sendResponse(response);
-        },
-        () => sendResponse({ events: [] } satisfies TabEventsResponse)
+      tabInfoOf(request.tabId).then(
+        (response) => sendResponse(response),
+        () => sendResponse({ events: [], watched: [] } satisfies TabEventsResponse)
       );
       return true;
     }
@@ -91,6 +88,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     const parsed = parseRegisterFingerprints(message);
     if (parsed === null) return;
     store.register(tabId, parsed, Date.now());
+    // Campo vigilado para el popup (popup-alertas.md, sección 5). sender.url lo pone Chrome, no la página.
+    void recordWatched(tabId, parsed.fieldType, siteOfUrl(sender.url) ?? "sitio desconocido").catch(
+      () => undefined
+    );
   } catch {
     // Mensaje descartado sin error visible para la página (sección 4.1).
     recordError();

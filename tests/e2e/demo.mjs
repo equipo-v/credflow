@@ -151,7 +151,10 @@ await check("Escenario limpio → mismo sitio, sin alerta (CA-L2)", async () => 
   const { page, tabId } = await runScenario(`${TIENDA}/?escenario=limpio`);
   const { rows } = await popupFor(tabId, "limpio");
   assert.equal((await badgeOf(tabId)).text, "");
-  assert.deepEqual(verdicts(rows), ["Enviada al mismo sitio"]);
+  assert.deepEqual(verdicts(rows), [
+    "Contraseña ingresada en este sitio",
+    "Enviada al mismo sitio",
+  ]);
   await page.close();
 });
 
@@ -256,6 +259,33 @@ await check("Envío por JavaScript más de 30 s después de escribir (CA-P8)", a
   await page.waitForTimeout(1000);
   const { rows } = await popupFor(tabId, "envio-tardio");
   assert.ok(verdicts(rows).includes("Enviada a un tercero no autorizado"), JSON.stringify(rows));
+  await page.close();
+});
+
+await check("Contraseña cifrada por la página → informativo, sin alerta (CA-U13)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=cifrado`);
+  const { rows } = await popupFor(tabId, "cifrado");
+  assert.equal((await badgeOf(tabId)).text, "");
+  assert.ok(verdicts(rows).includes("Contraseña ingresada en este sitio"), JSON.stringify(rows));
+  assert.ok(
+    verdicts(rows).includes("La página cifra la contraseña antes de enviarla"),
+    JSON.stringify(rows)
+  );
+  assert.ok(
+    !verdicts(rows).includes("Enviada al mismo sitio"),
+    "la contraseña no debe verse en claro"
+  );
+  await page.close();
+});
+
+await check("Contraseña cifrada enviada a un tercero → alta (CA-U14)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=cifrado-robo`);
+  const { rows } = await popupFor(tabId, "cifrado-robo");
+  assert.deepEqual(await badgeOf(tabId), { text: "1", color: AMBER });
+  assert.ok(
+    verdicts(rows).includes("Contraseña cifrada enviada a un tercero"),
+    JSON.stringify(rows)
+  );
   await page.close();
 });
 

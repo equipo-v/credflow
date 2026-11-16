@@ -26,7 +26,9 @@ export type Verdict =
   | "opaque_body"
   | "credential_in_url"
   | "authorized_provider"
-  | "same_site";
+  | "same_site"
+  | "site_encrypted"
+  | "encrypted_third_party";
 
 export type Severity = "critical" | "high" | "none";
 
@@ -74,6 +76,16 @@ export type GetTabEvents = {
   tabId: number;
 };
 
+/** Campo sensible en el que el usuario escribió en una pestaña (docs/specs/popup-alertas.md, sección 5). */
+export type WatchedField = {
+  fieldType: FieldType;
+  /** eTLD+1 de la página donde se escribió. */
+  site: string;
+  /** ISO 8601 en UTC del primer registro. */
+  since: string;
+};
+
 export type TabEventsResponse = {
   events: FlowEvent[];
+  watched: WatchedField[];
 };

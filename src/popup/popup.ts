@@ -1,7 +1,7 @@
 // Popup de CredFlow (docs/specs/popup-alertas.md, sección 5).
 // Todo el texto se inserta con textContent: nunca innerHTML.
 import type { GetTabEvents, TabEventsResponse } from "../shared/types";
-import { rowFor } from "./format";
+import { rowFor, watchedRowFor } from "./format";
 
 const GENERIC_ERROR = "No se pudo cargar la información";
 
@@ -40,7 +40,8 @@ function isResponse(value: unknown): value is TabEventsResponse {
   return (
     typeof value === "object" &&
     value !== null &&
-    Array.isArray((value as TabEventsResponse).events)
+    Array.isArray((value as TabEventsResponse).events) &&
+    Array.isArray((value as TabEventsResponse).watched)
   );
 }
 
@@ -60,17 +61,33 @@ async function render(): Promise<void> {
       return;
     }
     const [latest] = response.events;
-    byId("site").textContent = latest ? `Sitio: ${latest.pageSite}` : "";
-    if (response.events.length === 0) {
+    const site = latest?.pageSite ?? response.watched.at(-1)?.site;
+    byId("site").textContent = site ? `Sitio: ${site}` : "";
+    if (response.events.length === 0 && response.watched.length === 0) {
       status.textContent = "Sin flujos sensibles en esta pestaña";
       return;
+    }
+    // Primero los campos vigilados (azul), luego los flujos detectados.
+    for (const watched of response.watched) {
+      const row = watchedRowFor(watched);
+      const item = element("li", "event info watched", "");
+      item.append(
+        element("span", "severity", "ℹ vigilando"),
+        element("div", "verdict", row.title),
+        element("div", "meta", `${row.note} · ${row.site}`),
+        element("div", "meta", row.time)
+      );
+      list.append(item);
     }
     for (const event of response.events) {
       const row = rowFor(event);
       const item = element("li", `event ${row.severity}`, "");
       item.append(
         element("span", "severity", row.severityLabel),
-        element("div", "verdict", row.verdict),
+        element("div", "verdict", row.verdict)
+      );
+      if (row.note) item.append(element("div", "meta", row.note));
+      item.append(
         element("div", "meta", `${row.field} → ${row.destination}`),
         element("div", "meta", row.time)
       );
