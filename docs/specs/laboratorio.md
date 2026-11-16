@@ -39,6 +39,8 @@ La tienda (`/`) carga el formulario y un `analytics.js` cuyo comportamiento se e
 | `robo-blob` | Igual, pero dentro de un `Blob` con `fetch`. | `opaque_body`, alta |
 | `url` | Manda la contraseña en la consulta de la URL a la propia tienda. | `credential_in_url`, alta |
 | `robo-navega` | Como `robo`, pero el formulario se envía de verdad y la tienda redirige a `/bienvenida`, como un sitio real. | `third_party`, crítica; el ícono sigue en rojo tras navegar |
+| `cifrado` | Como Facebook: cifra la contraseña con Web Crypto (RSA-OAEP) y envía `encpass=#PWD_BROWSER:5:<hora>:<cifrado>` a la propia tienda. | `site_encrypted`, informativo |
+| `cifrado-robo` | Cifra igual, pero el script envía el valor cifrado al dominio de métricas. | `encrypted_third_party`, alta |
 
 La contraseña ficticia del laboratorio es `Prueba#2026`. La página muestra en grande el escenario activo y un texto
 que aclara que es un laboratorio con datos ficticios.

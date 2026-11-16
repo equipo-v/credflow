@@ -45,7 +45,8 @@ Nuevo contrato en `src/shared/types.ts`:
 
 ```ts
 type GetTabEvents = { kind: "GET_TAB_EVENTS"; tabId: number };
-type TabEventsResponse = { events: FlowEvent[] };
+type WatchedField = { fieldType: FieldType; site: string; since: string };
+type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 ```
 
 - El popup averigua la pestaña activa con `chrome.tabs.query({ active: true, currentWindow: true })`. Esta llamada no
@@ -75,8 +76,14 @@ type TabEventsResponse = { events: FlowEvent[] };
 | `credential_in_url` | Credencial en la URL | ! alta (ámbar) |
 | `authorized_provider` | Enviada a un proveedor autorizado | ✓ normal (verde) |
 | `same_site` | Enviada al mismo sitio | ✓ normal (verde) |
+| `site_encrypted` | La página cifra la contraseña antes de enviarla · CredFlow no puede ver su contenido | ℹ informativo (azul) |
+| `encrypted_third_party` | Contraseña cifrada enviada a un tercero | ! alta (ámbar) |
 
-- Sin eventos: el texto "Sin flujos sensibles en esta pestaña".
+- **Campos vigilados:** cuando el Motor recibe huellas de una pestaña, registra en el estado de la pestaña el tipo de
+  campo, el sitio (eTLD+1 de `sender.url`, que pone Chrome) y la hora del primer registro. El popup muestra arriba una
+  tarjeta azul por tipo de campo: "Contraseña ingresada en este sitio · CredFlow vigila a dónde se envía". Así el popup
+  nunca queda vacío cuando el usuario escribió una contraseña, aunque no se detecte ninguna salida. No cambia el ícono.
+- Sin eventos ni campos vigilados: el texto "Sin flujos sensibles en esta pestaña".
 - Al final, una sección plegable **"Cómo probar CredFlow"** (`<details>`), con texto fijo en el HTML, para quien pruebe
   la extensión sin conocer el proyecto: qué campos vigila, el mínimo de 6 caracteres, qué envíos detecta, qué
   significa cada color, cómo habilitar las páginas abiertas como archivo (`file://`), que en `localhost` el HTTP no se
@@ -116,6 +123,11 @@ type TabEventsResponse = { events: FlowEvent[] };
 - **CA-U10** `popup.html` contiene la sección "Cómo probar CredFlow" con el mínimo de 6 caracteres y la instrucción
   para habilitar `file://`.
 - **CA-U11** El validador de lo leído de `storage.session` descarta datos con forma incorrecta.
+- **CA-U12** `rowFor` produce los textos de `site_encrypted` (informativo, azul) y `encrypted_third_party` (alta).
+- **CA-U13 (E2E)** En el escenario `cifrado` del laboratorio, el popup muestra "Contraseña ingresada en este sitio" y
+  "La página cifra la contraseña antes de enviarla", y el ícono no cambia.
+- **CA-U14 (E2E)** En el escenario `cifrado-robo`, el popup muestra "Contraseña cifrada enviada a un tercero" y el
+  ícono queda en ámbar.
 
 ## 8. Fuera de alcance
 

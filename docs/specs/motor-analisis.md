@@ -141,6 +141,30 @@ errores no pasen desapercibidos (una página podría provocarlos a propósito pa
 - El evento no contiene datos de la petición ni del mensaje que falló: ni URL, ni cuerpo, ni huellas, ni el texto
   del error.
 
+### 4.7. Contraseña cifrada por la página
+
+Algunos sitios (Facebook, Instagram, varios bancos) cifran o transforman la contraseña en el navegador antes de
+enviarla. Ninguna huella coincide, así que sin esta regla CredFlow no mostraría nada.
+
+- Se aplica cuando la pestaña tiene huellas activas, ni el cuerpo ni la URL contienen una huella y el cuerpo se pudo
+  leer (no es opaco).
+- Del cuerpo se extraen pares campo-valor: de `formData`; del texto `raw` si tiene forma de formulario codificado
+  (`a=1&b=2`); y del texto `raw` si es JSON, recorriendo objetos hasta 3 niveles.
+- Hay **contraseña cifrada** si algún campo cumple una de estas condiciones:
+  1. **Formato conocido:** el valor empieza por `#PWD_BROWSER:` (Facebook) o `#PWD_INSTAGRAM_BROWSER:` (Instagram).
+  2. **Heurística:** el nombre del campo contiene `pass`, `pwd`, `clave`, `contrasena`, `contraseña`, `encpass`,
+     `cipher` o `crypt` (sin distinguir mayúsculas), y su valor tiene **32 caracteres o más** y solo caracteres de
+     Base64, Base64 URL o hexadecimal (opcionalmente con un prefijo de formato separado por `:` o `$`, como los hashes
+     `$2b$...`).
+- Veredicto:
+  - Destino del mismo sitio o proveedor autorizado → **`site_encrypted`**, severidad **ninguna** (informativo).
+  - Destino de un tercero no autorizado → **`encrypted_third_party`**, severidad **alta**: cifrar no impide el robo
+    si quien recibe tiene la clave.
+- El evento lleva `encoding: null`, `location: "body"` y el tipo del primer campo vigilado. **No** incluye el nombre
+  ni el valor del campo detectado.
+- CredFlow no puede comprobar que el cifrado sea fuerte; el texto para el usuario dice que la página "cifra o
+  transforma" la contraseña, no que sea segura.
+
 ## 5. Salida
 
 Evento emitido hacia el Registro de auditoría y el Popup:
@@ -165,7 +189,9 @@ type FlowEvent = {
     | "opaque_body"
     | "credential_in_url"
     | "authorized_provider"
-    | "same_site";
+    | "same_site"
+    | "site_encrypted"
+    | "encrypted_third_party";
   severity: "critical" | "high" | "none";
 };
 ```
@@ -213,6 +239,12 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
   el mismo envío a `http://tienda.lab` sí.
 - **CA-17 (E2E)** En el laboratorio, enviar la contraseña dentro de un `Blob` con `fetch` hacia el dominio de
   métricas produce una alerta `opaque_body`.
+
+- **CA-21** Con huellas activas, un formulario al mismo sitio con `encpass=#PWD_BROWSER:5:...` produce `site_encrypted`
+  sin severidad; el mismo cuerpo hacia un tercero produce `encrypted_third_party` / `high`.
+- **CA-22** Un JSON con `{"login": {"password": "<64 caracteres hexadecimales>"}}` produce `site_encrypted`; un campo con
+  un valor corto (`password=abc`) o con un nombre que no es de contraseña (`token=<64 hex>`) no lo produce.
+- **CA-23** El evento `site_encrypted` no contiene el nombre ni el valor del campo detectado.
 
 ## 8. Fuera de alcance
 
