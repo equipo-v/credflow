@@ -1,6 +1,8 @@
 // Atribución del script que hizo una petición (docs/specs/motor-analisis.md, sección 4.8).
 // Lógica pura: guarda en memoria la URL y el script de los PageReport recientes, nunca su contenido (extra).
-// La URL puede contener el dato sensible: solo vive en memoria y caduca a los 10 s.
+// La URL puede contener el dato sensible: solo vive en memoria y caduca a los 10 s (reportes) o a los 3 s (eventos
+// que esperan atribución). La limpieza se programa al guardar, para que ocurra aunque no llegue nada más
+// (AGENTS.md, regla 1).
 
 export const REPORT_TTL_MS = 10_000;
 export const MATCH_WINDOW_MS = 3_000;
@@ -9,9 +11,25 @@ export const MAX_REPORTS_PER_TAB = 50;
 type Report = { url: string; script: string; at: number };
 type Pending = { url: string; eventId: string; at: number };
 
+/** Programa una tarea diferida; se inyecta para poder probar la caducidad sin esperar. */
+export type Scheduler = (task: () => void, delayMs: number) => void;
+
+const defaultScheduler: Scheduler = (task, delayMs) => {
+  setTimeout(task, delayMs);
+};
+
 export class AttributionLog {
   private readonly reports = new Map<number, Report[]>();
   private readonly pending = new Map<number, Pending[]>();
+
+  constructor(
+    private readonly clock: () => number = Date.now,
+    private readonly schedule: Scheduler = defaultScheduler
+  ) {}
+
+  private pruneLater(delayMs: number): void {
+    this.schedule(() => this.prune(this.clock()), delayMs + 500);
+  }
 
   /**
    * Guarda un reporte con script y devuelve los eventos de red ya creados para la misma URL (hasta 3 s antes) que
@@ -24,6 +42,7 @@ export class AttributionLog {
     list.push({ url, script, at: now });
     if (list.length > MAX_REPORTS_PER_TAB) list.shift();
     this.reports.set(tabId, list);
+    this.pruneLater(REPORT_TTL_MS);
 
     const waiting = this.pending.get(tabId) ?? [];
     const matched = waiting.filter((p) => p.url === url && now - p.at <= MATCH_WINDOW_MS);
@@ -51,6 +70,7 @@ export class AttributionLog {
     list.push({ url, eventId, at: now });
     if (list.length > MAX_REPORTS_PER_TAB) list.shift();
     this.pending.set(tabId, list);
+    this.pruneLater(MATCH_WINDOW_MS);
   }
 
   /** Elimina lo caducado: reportes de más de 10 s y esperas de más de 3 s. */
@@ -75,5 +95,10 @@ export class AttributionLog {
   /** Para las pruebas: cuántos reportes guarda la pestaña. */
   size(tabId: number): number {
     return this.reports.get(tabId)?.length ?? 0;
+  }
+
+  /** Para las pruebas: cuántos eventos de la pestaña esperan atribución. */
+  pendingSize(tabId: number): number {
+    return this.pending.get(tabId)?.length ?? 0;
   }
 }
