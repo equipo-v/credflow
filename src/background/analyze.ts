@@ -23,6 +23,8 @@ export type AnalysisContext = {
   lastKnownPageSite: string | null;
   now: Date;
   newId: () => string;
+  /** Script atribuido a una URL por el interceptor de página (sección 4.8), si lo hay. */
+  scriptFor?: (url: string) => string | null;
 };
 
 type Match = { fieldType: FieldType; encoding: Encoding; location: "body" | "url" };
@@ -125,5 +127,7 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     truncated: body.truncated,
     verdict,
     severity,
+    script: ctx.scriptFor?.(request.url) ?? null,
+    evidence: "network",
   };
 }

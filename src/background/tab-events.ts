@@ -97,6 +97,7 @@ const VERDICTS = new Set([
   "encrypted_third_party",
 ]);
 const SEVERITIES = new Set(["critical", "high", "none"]);
+const LOCATIONS = new Set(["body", "url", "header", "websocket"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -118,7 +119,9 @@ function isFlowEvent(value: unknown, tabId: number): value is FlowEvent {
     value.tabId === tabId &&
     (FIELD_TYPES as readonly unknown[]).includes(value.fieldType) &&
     (value.encoding === null || (ENCODINGS as readonly unknown[]).includes(value.encoding)) &&
-    (value.location === "body" || value.location === "url") &&
+    LOCATIONS.has(value.location as string) &&
+    (value.script === undefined || value.script === null || typeof value.script === "string") &&
+    (value.evidence === undefined || value.evidence === "network" || value.evidence === "page") &&
     typeof value.truncated === "boolean" &&
     VERDICTS.has(value.verdict as string) &&
     SEVERITIES.has(value.severity as string)
@@ -143,7 +146,14 @@ export function parseStoredTabState(raw: unknown, tabId: number): TabState | nul
   const { alerts, critical } = raw.summary;
   if (typeof alerts !== "number" || !Number.isInteger(alerts) || alerts < 0) return null;
   if (typeof critical !== "boolean") return null;
-  const events = raw.events.filter((event): event is FlowEvent => isFlowEvent(event, tabId));
+  // Los eventos guardados por versiones anteriores no tienen script ni evidence: se completan.
+  const events = raw.events
+    .filter((event): event is FlowEvent => isFlowEvent(event, tabId))
+    .map((event) => ({
+      ...event,
+      script: event.script ?? null,
+      evidence: event.evidence ?? "network",
+    }));
   // Estados guardados por versiones anteriores no tienen "watched": se toma como lista vacía.
   const watched = Array.isArray(raw.watched) ? raw.watched.filter(isWatchedField) : [];
   return {

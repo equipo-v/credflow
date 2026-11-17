@@ -15,6 +15,10 @@ export const MAX_BODY_BYTES = 256 * 1024;
 
 export const FIELD_TYPES = ["password", "card", "custom"] as const;
 
+/** Límites del reporte del interceptor de página (docs/specs/interceptor-pagina.md, sección 6). */
+export const MAX_REPORT_URL = 2048;
+export const MAX_REPORT_TEXT = 64 * 1024;
+
 export const ENCODINGS = ["original", "base64", "url", "hex", "reversed"] as const;
 
 /** Ventana y umbral para emitir un evento de diagnóstico por errores de análisis (sección 4.6). */

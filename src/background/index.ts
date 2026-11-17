@@ -11,7 +11,7 @@ import { analyzeRequest } from "./analyze";
 import { FingerprintStore } from "./fingerprint-store";
 import { ErrorMonitor } from "./error-monitor";
 import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./flow-events";
-import { parseManagedConfig, type ManagedConfig } from "./managed-config";
+import { parseManagedConfig, parseTrustedSites, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
 import { badgeFor, type AlertSummary } from "./tab-events";
 import { forgetTab, recordEvent, recordWatched, summaryOf, tabInfoOf } from "./tab-store";
@@ -20,6 +20,22 @@ const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
 const errors = new ErrorMonitor();
 let config: ManagedConfig = parseManagedConfig(undefined);
+let trustedSites: ReadonlySet<string> = new Set();
+/** Proveedores autorizados por el administrador más destinos de confianza del usuario (sección 3.4). */
+let authorizedSites: ReadonlySet<string> = new Set();
+
+function refreshAuthorizedSites(): void {
+  authorizedSites = new Set([...config.authorizedSites, ...trustedSites]);
+}
+
+async function loadTrustedSites(): Promise<void> {
+  try {
+    trustedSites = parseTrustedSites((await chrome.storage.local.get("trustedSites")).trustedSites);
+  } catch {
+    trustedSites = new Set();
+  }
+  refreshAuthorizedSites();
+}
 
 /** Registra un error sin ningún dato de lo que falló y avisa si se repiten (sección 4.6). */
 function recordError(): void {
@@ -38,9 +54,11 @@ async function loadManagedConfig(): Promise<void> {
     // Sin política configurada: lista vacía.
     config = parseManagedConfig(undefined);
   }
+  refreshAuthorizedSites();
 }
 
 void loadManagedConfig();
+void loadTrustedSites();
 
 // Eventos por pestaña y alerta en el ícono (docs/specs/popup-alertas.md, secciones 2 y 3).
 function applyBadge(tabId: number, summary: AlertSummary): void {
@@ -68,6 +86,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName === "managed") void loadManagedConfig();
+  if (areaName === "local") void loadTrustedSites();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
@@ -115,7 +134,7 @@ chrome.webRequest.onBeforeRequest.addListener(
         },
         {
           fingerprints,
-          authorizedSites: config.authorizedSites,
+          authorizedSites,
           lastKnownPageSite: lastPageSite.get(details.tabId) ?? null,
           now: new Date(now),
           newId: () => crypto.randomUUID(),

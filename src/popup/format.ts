@@ -86,3 +86,40 @@ export function watchedRowFor(watched: WatchedField): WatchedRow {
     time: formatTime(watched.since),
   };
 }
+
+/** Veredictos que ofrecen "Confiar en…" (sección 5.2). Nunca insecure_channel: el canal sigue sin cifrar. */
+const TRUSTABLE: ReadonlySet<Verdict> = new Set<Verdict>([
+  "third_party",
+  "opaque_body",
+  "encrypted_third_party",
+]);
+
+export function canTrust(event: FlowEvent): boolean {
+  return TRUSTABLE.has(event.verdict);
+}
+
+/** "Script: analytics.js (http://localhost:8124)" a partir de origen + ruta (sección 5.1). */
+export function scriptLabel(script: string | null): string {
+  if (!script) return "";
+  try {
+    const url = new URL(script);
+    const file = url.pathname.split("/").filter(Boolean).at(-1) ?? "";
+    return `Script: ${file || "(código en la página)"} (${url.origin})`;
+  } catch {
+    return "";
+  }
+}
+
+const EVIDENCE_PLACE: Record<FlowEvent["location"], string> = {
+  header: "encabezado",
+  body: "Blob",
+  websocket: "WebSocket",
+  url: "URL",
+};
+
+/** Indica que el evento lo detectó el interceptor de página y dónde (sección 5.1). */
+export function evidenceLabel(event: FlowEvent): string {
+  return event.evidence === "page"
+    ? `Detectado en la página (${EVIDENCE_PLACE[event.location]})`
+    : "";
+}

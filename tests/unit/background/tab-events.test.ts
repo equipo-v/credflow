@@ -23,6 +23,8 @@ function event(tabId: number, severity: Severity): FlowEvent {
     encoding: "base64",
     location: "body",
     truncated: false,
+    script: null,
+    evidence: "network",
     verdict: severity === "none" ? "same_site" : "third_party",
     severity,
   };

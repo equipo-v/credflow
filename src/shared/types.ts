@@ -52,10 +52,23 @@ export type FlowEvent = {
   fieldType: FieldType;
   /** null solo en opaque_body. */
   encoding: Encoding | null;
-  location: "body" | "url";
+  location: "body" | "url" | "header" | "websocket";
   truncated: boolean;
   verdict: Verdict;
   severity: Severity;
+  /** Script que hizo la petición, origen + ruta (sección 4.8), o null si no se sabe. */
+  script: string | null;
+  /** Capa que produjo el evento: la red (autoritativa) o la página (orientativa, sección 4.9). */
+  evidence: "network" | "page";
+};
+
+/** Reporte del interceptor de página (docs/specs/interceptor-pagina.md, sección 6). */
+export type PageReport = {
+  kind: "PAGE_REPORT";
+  api: "fetch" | "xhr" | "beacon" | "websocket";
+  url: string;
+  script: string | null;
+  extra: { location: "header" | "blob" | "websocket"; text: string } | null;
 };
 
 /**
