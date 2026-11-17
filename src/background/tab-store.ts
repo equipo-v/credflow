@@ -85,3 +85,11 @@ export function forgetTab(tabId: number): Promise<void> {
     }
   });
 }
+
+/** Completa el script de un evento guardado cuando el reporte de la página llega después (motor, sección 4.8). */
+export function setEventScript(tabId: number, eventId: string, script: string): Promise<void> {
+  return serialized(async () => {
+    await ensureLoaded(tabId);
+    if (log.setScript(tabId, eventId, script)) await save(tabId);
+  });
+}

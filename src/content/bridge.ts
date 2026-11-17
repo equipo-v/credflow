@@ -1,9 +1,15 @@
 // Puente de mensajes: content script en el mundo aislado (docs/specs/puente-mensajes.md).
 // Detecta lo que el usuario escribe en campos sensibles y envía las huellas al Motor de análisis.
 // El valor solo existe dentro de sendFingerprints: no se guarda en el DOM, en variables globales ni en logs.
+import { parsePageReport } from "../shared/validators";
+import { MAX_REPORT_TEXT } from "../shared/constants";
 import { buildRegisterMessage, fieldTypeOf, shouldRefresh } from "./fields";
 
 const DEBOUNCE_MS = 300;
+const EVENT_NAME = "credflow:report";
+/** Los reportes del interceptor solo se reenvían si el usuario escribió en un campo sensible hace menos de 60 s. */
+const REPORT_WINDOW_MS = 60_000;
+let lastTypedAt: number | null = null;
 
 type FieldState = {
   timer: ReturnType<typeof setTimeout> | null;
@@ -73,6 +79,7 @@ document.addEventListener(
     if (!event.isTrusted) return;
     const field = sensitiveField(event.target);
     if (!field) return;
+    lastTypedAt = Date.now();
     const state = stateOf(field);
     state.typed = true;
     state.dirty = true;
@@ -127,3 +134,18 @@ document.addEventListener(
   },
   true
 );
+
+// Reportes del interceptor de página (docs/specs/interceptor-pagina.md, sección 5). Llegan desde el mundo MAIN,
+// donde también corre el código de la página: son datos no confiables y se validan antes de reenviarlos.
+document.addEventListener(EVENT_NAME, (event) => {
+  try {
+    if (lastTypedAt === null || Date.now() - lastTypedAt > REPORT_WINDOW_MS) return;
+    const detail: unknown = (event as CustomEvent<unknown>).detail;
+    if (typeof detail !== "string" || detail.length > MAX_REPORT_TEXT + 8 * 1024) return;
+    const report = parsePageReport(JSON.parse(detail) as unknown);
+    if (!report) return;
+    chrome.runtime.sendMessage(report).catch(() => undefined);
+  } catch {
+    // Reporte descartado en silencio.
+  }
+});

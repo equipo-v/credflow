@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   isExtensionPageSender,
   parseGetTabEvents,
+  parsePageReport,
   parseRegisterFingerprints,
   trustedSenderTabId,
 } from "../../../src/shared/validators";
+import { MAX_REPORT_TEXT, MAX_REPORT_URL } from "../../../src/shared/constants";
 
 const valid = {
   kind: "REGISTER_FINGERPRINTS",
@@ -152,5 +154,53 @@ describe("isExtensionPageSender (CA-U4)", () => {
       false
     );
     expect(isExtensionPageSender({ id: EXT }, EXT)).toBe(false);
+  });
+});
+
+describe("parsePageReport (CA-I1)", () => {
+  const valid = {
+    kind: "PAGE_REPORT",
+    api: "fetch",
+    url: "https://metricas.lab/collect",
+    script: "https://tienda.lab/analytics.js",
+    extra: { location: "header", text: "x-token: abc" },
+  };
+
+  it("acepta un reporte válido, con o sin extra", () => {
+    expect(parsePageReport(valid)).toEqual(valid);
+    expect(
+      parsePageReport({
+        ...valid,
+        extra: null,
+        script: null,
+        api: "websocket",
+        url: "wss://x.lab/ws",
+      })
+    ).not.toBeNull();
+  });
+
+  it("rechaza claves adicionales, api desconocida y esquemas no permitidos", () => {
+    expect(parsePageReport({ ...valid, tabId: 9 })).toBeNull();
+    expect(parsePageReport({ ...valid, extra: { ...valid.extra, value: "x" } })).toBeNull();
+    expect(parsePageReport({ ...valid, api: "eval" })).toBeNull();
+    expect(parsePageReport({ ...valid, extra: { location: "cookie", text: "" } })).toBeNull();
+    expect(parsePageReport({ ...valid, url: "javascript:alert(1)" })).toBeNull();
+    expect(parsePageReport({ ...valid, url: "data:text/plain,hola" })).toBeNull();
+    expect(parsePageReport("PAGE_REPORT")).toBeNull();
+  });
+
+  it("rechaza textos y URL más largos que el máximo", () => {
+    expect(
+      parsePageReport({
+        ...valid,
+        extra: { location: "blob", text: "a".repeat(MAX_REPORT_TEXT + 1) },
+      })
+    ).toBeNull();
+    expect(
+      parsePageReport({ ...valid, url: "https://x.lab/" + "a".repeat(MAX_REPORT_URL) })
+    ).toBeNull();
+    expect(
+      parsePageReport({ ...valid, script: "https://x.lab/" + "a".repeat(MAX_REPORT_URL) })
+    ).toBeNull();
   });
 });

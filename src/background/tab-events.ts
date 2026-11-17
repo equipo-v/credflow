@@ -29,6 +29,14 @@ export class TabEventLog {
     return state.summary;
   }
 
+  /** Completa el script de un evento ya guardado (sección 4.8). Devuelve true si lo cambió. */
+  setScript(tabId: number, eventId: string, script: string): boolean {
+    const event = this.byTab.get(tabId)?.events.find((e) => e.id === eventId);
+    if (!event || event.script !== null) return false;
+    event.script = script;
+    return true;
+  }
+
   /** Eventos de la pestaña, del más reciente al más antiguo. */
   list(tabId: number): FlowEvent[] {
     return [...(this.byTab.get(tabId)?.events ?? [])].reverse();

@@ -1,24 +1,34 @@
 // Service Worker de CredFlow: conecta el Motor de análisis con las APIs de Chrome.
 // La lógica está en módulos puros (analyze, fingerprint-store, request-body) que se prueban sin navegador.
-import type { TabEventsResponse } from "../shared/types";
+import type { PageReport, TabEventsResponse } from "../shared/types";
 import {
   isExtensionPageSender,
   parseGetTabEvents,
+  parsePageReport,
   parseRegisterFingerprints,
   trustedSenderTabId,
 } from "../shared/validators";
-import { analyzeRequest } from "./analyze";
+import { analyzePageReport, analyzeRequest } from "./analyze";
+import { AttributionLog, REPORT_TTL_MS } from "./page-reports";
 import { FingerprintStore } from "./fingerprint-store";
 import { ErrorMonitor } from "./error-monitor";
 import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./flow-events";
 import { parseManagedConfig, parseTrustedSites, type ManagedConfig } from "./managed-config";
 import { siteOfUrl } from "./site";
 import { badgeFor, type AlertSummary } from "./tab-events";
-import { forgetTab, recordEvent, recordWatched, summaryOf, tabInfoOf } from "./tab-store";
+import {
+  forgetTab,
+  recordEvent,
+  recordWatched,
+  setEventScript,
+  summaryOf,
+  tabInfoOf,
+} from "./tab-store";
 
 const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
 const errors = new ErrorMonitor();
+const attribution = new AttributionLog();
 let config: ManagedConfig = parseManagedConfig(undefined);
 let trustedSites: ReadonlySet<string> = new Set();
 /** Proveedores autorizados por el administrador más destinos de confianza del usuario (sección 3.4). */
@@ -89,6 +99,24 @@ chrome.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName === "local") void loadTrustedSites();
 });
 
+/** Reporte del interceptor de página (motor-analisis.md, secciones 4.8 y 4.9). */
+function handlePageReport(tabId: number, report: PageReport, senderSite: string | null): void {
+  const now = Date.now();
+  for (const eventId of attribution.addReport(tabId, report.url, report.script, now)) {
+    if (report.script) void setEventScript(tabId, eventId, report.script).catch(() => undefined);
+  }
+  // Los reportes caducan aunque no lleguen más mensajes (la URL puede contener el dato sensible).
+  setTimeout(() => attribution.prune(Date.now()), REPORT_TTL_MS + 500);
+  const event = analyzePageReport(tabId, report, {
+    fingerprints: store.active(tabId, now),
+    authorizedSites,
+    pageSite: senderSite ?? lastPageSite.get(tabId) ?? null,
+    now: new Date(now),
+    newId: () => crypto.randomUUID(),
+  });
+  if (event) publishFlowEvent(event);
+}
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   try {
     // Petición del popup: solo se responde a páginas de la propia extensión (popup-alertas.md, sección 4).
@@ -104,6 +132,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     }
     const tabId = trustedSenderTabId(sender, chrome.runtime.id);
     if (tabId === null) return;
+    const pageReport = parsePageReport(message);
+    if (pageReport !== null) {
+      handlePageReport(tabId, pageReport, siteOfUrl(sender.url));
+      return;
+    }
     const parsed = parseRegisterFingerprints(message);
     if (parsed === null) return;
     store.register(tabId, parsed, Date.now());
@@ -138,9 +171,15 @@ chrome.webRequest.onBeforeRequest.addListener(
           lastKnownPageSite: lastPageSite.get(details.tabId) ?? null,
           now: new Date(now),
           newId: () => crypto.randomUUID(),
+          scriptFor: (url) => attribution.scriptFor(details.tabId, url, now),
         }
       );
-      if (event) publishFlowEvent(event);
+      if (event) {
+        // Si el reporte de la página llega después de la petición, el script se completa entonces (sección 4.8).
+        if (event.script === null)
+          attribution.awaitReport(details.tabId, details.url, event.id, now);
+        publishFlowEvent(event);
+      }
       if (details.type === "main_frame") {
         const site = siteOfUrl(details.url);
         if (site) lastPageSite.set(details.tabId, site);
@@ -156,6 +195,7 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   store.clearTab(tabId);
+  attribution.clearTab(tabId);
   lastPageSite.delete(tabId);
   void forgetTab(tabId);
 });

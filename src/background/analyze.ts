@@ -1,6 +1,13 @@
 // Búsqueda de huellas y clasificación de una petición (secciones 4.3, 4.4 y 4.5).
 // Lógica pura: no usa APIs de Chrome, para poder probarla con Vitest.
-import type { Encoding, FieldType, FlowEvent, Severity, Verdict } from "../shared/types";
+import type {
+  Encoding,
+  FieldType,
+  FlowEvent,
+  PageReport,
+  Severity,
+  Verdict,
+} from "../shared/types";
 import type { ActiveFingerprint } from "./fingerprint-store";
 import { bodyFields, hasEncryptedPassword } from "./encrypted-field";
 import { readRequestBody, type RequestBodyLike } from "./request-body";
@@ -129,5 +136,71 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     severity,
     script: ctx.scriptFor?.(request.url) ?? null,
     evidence: "network",
+  };
+}
+
+const PAGE_LOCATION: Record<NonNullable<PageReport["extra"]>["location"], FlowEvent["location"]> = {
+  header: "header",
+  blob: "body",
+  websocket: "websocket",
+};
+
+export type PageContext = {
+  fingerprints: ActiveFingerprint[];
+  authorizedSites: ReadonlySet<string>;
+  /** Sitio de la página que envió el reporte, tomado del remitente (sender.url), nunca de la página. */
+  pageSite: string | null;
+  now: Date;
+  newId: () => string;
+};
+
+/**
+ * Evidencia de la página (sección 4.9): busca las huellas en el contenido que la red no ve (encabezados, Blob o
+ * WebSocket) y clasifica con las reglas de la sección 4.4. El contenido se descarta: el evento no lo incluye.
+ */
+export function analyzePageReport(
+  tabId: number,
+  report: PageReport,
+  ctx: PageContext
+): FlowEvent | null {
+  if (!report.extra || ctx.fingerprints.length === 0) return null;
+  const found = findIn(report.extra.text, ctx.fingerprints);
+  if (!found) return null;
+
+  let destination: URL;
+  try {
+    destination = new URL(report.url);
+  } catch {
+    return null;
+  }
+  const destinationSite = siteOfUrl(report.url) ?? destination.host;
+  const pageSite = ctx.pageSite ?? "";
+  const authorized = ctx.authorizedSites.has(destinationSite);
+
+  let verdict: Verdict;
+  let severity: Severity;
+  if (isInsecureChannel(destination)) [verdict, severity] = ["insecure_channel", "critical"];
+  else if (destinationSite !== pageSite && !authorized)
+    [verdict, severity] = ["third_party", "critical"];
+  else if (authorized) [verdict, severity] = ["authorized_provider", "none"];
+  else [verdict, severity] = ["same_site", "none"];
+
+  return {
+    id: ctx.newId(),
+    timestamp: ctx.now.toISOString(),
+    tabId,
+    pageSite,
+    destinationOrigin: destination.origin,
+    destinationSite,
+    method: report.api === "websocket" ? "WEBSOCKET" : "-",
+    requestType: report.api,
+    fieldType: found.fieldType,
+    encoding: found.encoding,
+    location: PAGE_LOCATION[report.extra.location],
+    truncated: false,
+    verdict,
+    severity,
+    script: report.script,
+    evidence: "page",
   };
 }
