@@ -163,3 +163,31 @@ describe("analyzePageReport (CA-26)", () => {
     expect(json).not.toContain("/collect");
   });
 });
+
+describe("AttributionLog: caducidad sin más mensajes (AGENTS.md, regla 1)", () => {
+  it("borra los eventos en espera a los 3 s y los reportes a los 10 s aunque no llegue nada más", () => {
+    let now = 1_000;
+    const tasks: Array<{ at: number; run: () => void }> = [];
+    const log = new AttributionLog(
+      () => now,
+      (task, delay) => tasks.push({ at: now + delay, run: task })
+    );
+    const advance = (ms: number) => {
+      now += ms;
+      for (const t of tasks.filter((t) => t.at <= now)) {
+        tasks.splice(tasks.indexOf(t), 1);
+        t.run();
+      }
+    };
+    // Evento credential_in_url: la URL lleva la contraseña y no llega ningún reporte de la página.
+    log.awaitReport(1, "https://tienda.lab/login?clave=Prueba%232026", "evento-1", now);
+    expect(log.pendingSize(1)).toBe(1);
+    advance(3_600);
+    expect(log.pendingSize(1)).toBe(0);
+
+    log.addReport(1, URL_M, SCRIPT, now);
+    expect(log.size(1)).toBe(1);
+    advance(10_600);
+    expect(log.size(1)).toBe(0);
+  });
+});

@@ -12,7 +12,7 @@ import {
 import { analyzePageReport, analyzeRequest } from "./analyze";
 import { AuditLog } from "./audit/audit-log";
 import { IdbAuditStorage } from "./audit/idb-storage";
-import { AttributionLog, REPORT_TTL_MS } from "./page-reports";
+import { AttributionLog } from "./page-reports";
 import { FingerprintStore } from "./fingerprint-store";
 import { ErrorMonitor } from "./error-monitor";
 import { publishDiagnostic, publishFlowEvent, subscribeToFlowEvents } from "./flow-events";
@@ -114,8 +114,6 @@ function handlePageReport(tabId: number, report: PageReport, senderSite: string 
   for (const eventId of attribution.addReport(tabId, report.url, report.script, now)) {
     if (report.script) void setEventScript(tabId, eventId, report.script).catch(() => undefined);
   }
-  // Los reportes caducan aunque no lleguen más mensajes (la URL puede contener el dato sensible).
-  setTimeout(() => attribution.prune(Date.now()), REPORT_TTL_MS + 500);
   const event = analyzePageReport(tabId, report, {
     fingerprints: store.active(tabId, now),
     authorizedSites,
