@@ -36,11 +36,13 @@ La tienda (`/`) carga el formulario y un `analytics.js` cuyo comportamiento se e
 | --- | --- | --- |
 | `limpio` | Nada. El formulario se envía a la propia tienda (`POST /recibir/login`). | `same_site`, sin alerta |
 | `robo` | Al enviar el formulario, manda la contraseña en Base64 con `navigator.sendBeacon` a Métricas. | `third_party`, crítica |
-| `robo-blob` | Igual, pero dentro de un `Blob` con `fetch`. | `opaque_body`, alta |
+| `robo-blob` | Igual, pero dentro de un `Blob` con `fetch`. | `opaque_body`, alta (red) y `third_party`, crítica, con evidencia de página (Blob) |
 | `url` | Manda la contraseña en la consulta de la URL a la propia tienda. | `credential_in_url`, alta |
 | `robo-navega` | Como `robo`, pero el formulario se envía de verdad y la tienda redirige a `/bienvenida`, como un sitio real. | `third_party`, crítica; el ícono sigue en rojo tras navegar |
 | `cifrado` | Como Facebook: cifra la contraseña con Web Crypto (RSA-OAEP) y envía `encpass=#PWD_BROWSER:5:<hora>:<cifrado>` a la propia tienda. | `site_encrypted`, informativo |
 | `cifrado-robo` | Cifra igual, pero el script envía el valor cifrado al dominio de métricas. | `encrypted_third_party`, alta |
+| `robo-encabezado` | El script manda la contraseña en Base64 dentro del encabezado `X-Token` de un `fetch` a Métricas (el cuerpo va vacío). | `third_party`, crítica, con evidencia de página (encabezado) |
+| `robo-websocket` | El script abre un WebSocket con Métricas (`ws://127.0.0.1:<puerto>/ws`) y envía la contraseña en un mensaje. | `third_party`, crítica, con evidencia de página (WebSocket) |
 
 La contraseña ficticia del laboratorio es `Prueba#2026`. La página muestra en grande el escenario activo y un texto
 que aclara que es un laboratorio con datos ficticios.
@@ -97,6 +99,8 @@ cada sitio (`--silencioso` la desactiva; las pruebas E2E la usan desactivada):
 - **CA-L1** `npm run lab` inicia el servidor solo en interfaces de bucle local y responde en las dos URLs.
 - **CA-L2** Cada escenario de la sección 3 produce exactamente el veredicto esperado y ningún otro evento crítico.
 - **CA-L3** `npm run test:e2e` termina con éxito en un equipo sin conexión a Internet y deja una captura por escenario.
+- **CA-L6** El servidor acepta el handshake de WebSocket solo en `/ws`, lee mensajes de texto de hasta 64 KB y la
+  vista del atacante muestra la contraseña ficticia que llega por WebSocket o en el encabezado `X-Token`.
 - **CA-L4** Ningún archivo del laboratorio ni de las pruebas contiene una credencial real.
 - **CA-L5** La vista del atacante muestra `Prueba#2026` cuando llega en claro, codificada para URL o en Base64, y oculta
   cualquier otro valor; el panel solo lista lo recibido por el dominio de métricas.
@@ -104,4 +108,4 @@ cada sitio (`--silencioso` la desactiva; las pruebas E2E la usan desactivada):
 ## 9. Fuera de alcance
 
 - HTTPS con certificados en el laboratorio.
-- Escenarios del interceptor en el mundo `MAIN` y de keyloggers.
+- Escenarios de keyloggers.

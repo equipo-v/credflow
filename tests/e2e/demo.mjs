@@ -128,14 +128,102 @@ await check("Robo en Base64 → tercero, crítica (CA-13, CA-P3, CA-U6, CA-L2)",
     rows.some((r) => r.meta.includes(`http://127.0.0.1:${PORT}`) && r.meta.includes("Contraseña"))
   );
   assert.ok(!JSON.stringify(rows).includes(PASSWORD), "el popup no debe mostrar la contraseña");
+  // CA-I3: el popup indica qué script envió la contraseña.
+  assert.ok(
+    rows.some((r) => r.meta.includes(`Script: analytics.js (${TIENDA})`)),
+    JSON.stringify(rows)
+  );
   await page.close();
 });
 
-await check("Robo dentro de un Blob → no inspeccionable, alta (CA-17, CA-L2)", async () => {
-  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo-blob`);
-  const { rows } = await popupFor(tabId, "robo-blob");
-  assert.deepEqual(await badgeOf(tabId), { text: "1", color: AMBER });
-  assert.ok(verdicts(rows).includes("Envío no inspeccionable a un tercero"));
+await check(
+  "Robo dentro de un Blob → no inspeccionable y evidencia de página (CA-17, CA-I6, CA-L2)",
+  async () => {
+    const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo-blob`);
+    const { rows } = await popupFor(tabId, "robo-blob");
+    assert.ok(
+      verdicts(rows).includes("Envío no inspeccionable a un tercero"),
+      JSON.stringify(rows)
+    );
+    // El interceptor lee el Blob y confirma que contiene la contraseña.
+    assert.ok(
+      rows.some(
+        (r) =>
+          r.verdict === "Enviada a un tercero no autorizado" &&
+          r.meta.includes("Detectado en la página (Blob)")
+      ),
+      JSON.stringify(rows)
+    );
+    assert.deepEqual(await badgeOf(tabId), { text: "2", color: RED });
+    await page.close();
+  }
+);
+
+await check("Contraseña en un encabezado HTTP → evidencia de página (CA-I4, CA-L2)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo-encabezado`);
+  const { rows } = await popupFor(tabId, "robo-encabezado");
+  assert.ok(
+    rows.some(
+      (r) =>
+        r.verdict === "Enviada a un tercero no autorizado" &&
+        r.meta.includes("Detectado en la página (encabezado)") &&
+        r.meta.includes("Script: analytics.js")
+    ),
+    JSON.stringify(rows)
+  );
+  assert.deepEqual(await badgeOf(tabId), { text: "1", color: RED });
+  await page.close();
+});
+
+await check("Contraseña por WebSocket → evidencia de página (CA-I5, CA-L2)", async () => {
+  const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo-websocket`);
+  const { rows } = await popupFor(tabId, "robo-websocket");
+  assert.ok(
+    rows.some(
+      (r) =>
+        r.verdict === "Enviada a un tercero no autorizado" &&
+        r.meta.includes("Detectado en la página (WebSocket)")
+    ),
+    JSON.stringify(rows)
+  );
+  assert.deepEqual(await badgeOf(tabId), { text: "1", color: RED });
+  await page.close();
+});
+
+await check("La página sigue funcionando con el interceptor (CA-I7)", async () => {
+  const page = await context.newPage();
+  await page.goto(unique(`${TIENDA}/?escenario=limpio`));
+  await page.click('input[type="password"]');
+  await page.keyboard.type(PASSWORD, { delay: 20 });
+  const outcome = await page.evaluate(async (metrics) => {
+    const fetchStatus = (
+      await fetch(`${metrics}/recibir/js`, {
+        method: "POST",
+        headers: { "X-Token": "abc" },
+        body: new Blob(["hola"]),
+      })
+    ).status;
+    const xhrStatus = await new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${metrics}/recibir/js`);
+      xhr.setRequestHeader("Content-Type", "text/plain");
+      xhr.onloadend = () => resolve(xhr.status);
+      xhr.send("hola");
+    });
+    const beacon = navigator.sendBeacon(`${metrics}/recibir/js`, new Blob(["hola"]));
+    const socket = await new Promise((resolve) => {
+      const ws = new WebSocket(metrics.replace("http", "ws") + "/ws");
+      ws.onopen = () => {
+        ws.send("hola");
+        ws.send(new Uint8Array([104, 111, 108, 97]));
+        ws.close();
+        resolve("abierto");
+      };
+      ws.onerror = () => resolve("error");
+    });
+    return { fetchStatus, xhrStatus, beacon, socket };
+  }, `http://127.0.0.1:${PORT}`);
+  assert.deepEqual(outcome, { fetchStatus: 204, xhrStatus: 204, beacon: true, socket: "abierto" });
   await page.close();
 });
 
@@ -287,6 +375,50 @@ await check("Contraseña cifrada enviada a un tercero → alta (CA-U14)", async 
     JSON.stringify(rows)
   );
   await page.close();
+});
+
+await check("Confiar en un destino y quitarlo desde el popup (CA-U17)", async () => {
+  const trusted = async () => {
+    const first = await runScenario(`${TIENDA}/?escenario=robo`);
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/src/popup/popup.html#tabId=${first.tabId}`);
+    const button = popup.locator(".actions button").first();
+    assert.equal(await button.textContent(), "Confiar en 127.0.0.1");
+    await button.click();
+    assert.equal(await button.textContent(), "¿Confirmar?");
+    await button.click();
+    await popup.waitForTimeout(400);
+    await popup.click("#trusted summary");
+    assert.deepEqual(
+      await popup.$$eval("#trusted-list li span", (s) => s.map((x) => x.textContent)),
+      ["127.0.0.1"]
+    );
+    await popup.screenshot({ path: path.join(evidence, "confiar-popup.png"), fullPage: true });
+    await popup.close();
+    await first.page.close();
+  };
+  await trusted();
+  const again = await runScenario(`${TIENDA}/?escenario=robo`);
+  const { rows } = await popupFor(again.tabId, "confiado");
+  assert.ok(verdicts(rows).includes("Enviada a un proveedor autorizado"), JSON.stringify(rows));
+  assert.ok(!verdicts(rows).includes("Enviada a un tercero no autorizado"), JSON.stringify(rows));
+  assert.equal((await badgeOf(again.tabId)).text, "");
+  await again.page.close();
+
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/src/popup/popup.html#tabId=0`);
+  await popup.click("#trusted summary");
+  await popup.getByRole("button", { name: "Quitar" }).click();
+  await popup.waitForTimeout(400);
+  assert.equal(await popup.$$eval("#trusted-list li", (l) => l.length), 0);
+  await popup.close();
+  const after = await runScenario(`${TIENDA}/?escenario=robo`);
+  const { rows: rowsAfter } = await popupFor(after.tabId, "tras-quitar");
+  assert.ok(
+    verdicts(rowsAfter).includes("Enviada a un tercero no autorizado"),
+    JSON.stringify(rowsAfter)
+  );
+  await after.page.close();
 });
 
 await check("La vista del atacante solo muestra la contraseña ficticia (CA-L5)", async () => {

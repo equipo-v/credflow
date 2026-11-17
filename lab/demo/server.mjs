@@ -4,6 +4,7 @@
 // Vista del atacante (sección 6): con showStolen, muestra en la terminal y en /panel lo que recibe cada sitio.
 // Solo muestra en claro la contraseña ficticia del laboratorio; cualquier otro valor se oculta, por si alguien
 // escribe una credencial real por error. Nada se guarda en disco y el panel se vacía al detener el servidor.
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -86,9 +87,22 @@ ${rows ? `<table><tr><th>Hora</th><th>Canal</th><th>Dato robado</th></tr>${rows}
 
 function createHandler({ showStolen }) {
   const panel = [];
-  return function handler(req, res) {
+  /** Muestra en la terminal y en el panel lo que llegó (sección 6). */
+  function show(arrival) {
+    const time = new Date().toLocaleTimeString("es-CO", { hour12: false });
+    const who = arrival.role === "atacante" ? "\x1b[31mATACANTE\x1b[0m" : "\x1b[32mtienda  \x1b[0m";
+    console.log(`[${time}] ${who} ← ${arrival.channel.padEnd(10)} ${arrival.summary}`);
+    if (arrival.stolen) {
+      panel.unshift({ time, channel: arrival.channel, summary: arrival.summary });
+      panel.length = Math.min(panel.length, MAX_PANEL);
+    }
+  }
+  handler.show = show;
+  handler.showStolen = showStolen;
+  return handler;
+  function handler(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token");
     res.setHeader("Cache-Control", "no-store");
     const url = new URL(req.url ?? "/", "http://lab");
     if (req.method === "OPTIONS") return res.writeHead(204).end();
@@ -116,15 +130,12 @@ function createHandler({ showStolen }) {
           host: req.headers.host ?? "",
           pathname: isLogin ? "/recibir/login" : url.pathname,
           search: url.search,
-          body: Buffer.concat(chunks).toString("utf8"),
+          // El escenario robo-encabezado manda la contraseña en X-Token, no en el cuerpo.
+          body: [Buffer.concat(chunks).toString("utf8"), String(req.headers["x-token"] ?? "")]
+            .filter(Boolean)
+            .join("\n"),
         });
-        const time = new Date().toLocaleTimeString("es-CO", { hour12: false });
-        const who = arrival.role === "atacante" ? "\x1b[31mATACANTE\x1b[0m" : "\x1b[32mtienda  \x1b[0m";
-        console.log(`[${time}] ${who} ← ${arrival.channel.padEnd(10)} ${arrival.summary}`);
-        if (arrival.stolen) {
-          panel.unshift({ time, channel: arrival.channel, summary: arrival.summary });
-          panel.length = Math.min(panel.length, MAX_PANEL);
-        }
+        show(arrival);
       });
       return;
     }
@@ -139,6 +150,69 @@ function createHandler({ showStolen }) {
       (data) => res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] }).end(data),
       () => res.writeHead(500).end()
     );
+  }
+}
+
+const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+/**
+ * Lee los marcos de un WebSocket (RFC 6455) acumulados en buffer. Devuelve los mensajes de texto completos y lo que
+ * sobra; close indica un marco de cierre. Solo admite marcos enmascarados (los del navegador) de hasta 64 KB.
+ */
+export function readFrames(buffer) {
+  const messages = [];
+  let offset = 0;
+  let close = false;
+  while (buffer.length - offset >= 2) {
+    const opcode = buffer[offset] & 0x0f;
+    const masked = (buffer[offset + 1] & 0x80) !== 0;
+    let length = buffer[offset + 1] & 0x7f;
+    let header = 2;
+    if (length === 126) {
+      if (buffer.length - offset < 4) break;
+      length = buffer.readUInt16BE(offset + 2);
+      header = 4;
+    } else if (length === 127) {
+      return { messages, rest: Buffer.alloc(0), close: true }; // demasiado grande para el laboratorio
+    }
+    if (!masked || length > MAX_BODY) return { messages, rest: Buffer.alloc(0), close: true };
+    if (buffer.length - offset < header + 4 + length) break;
+    const mask = buffer.subarray(offset + header, offset + header + 4);
+    const payload = Buffer.from(buffer.subarray(offset + header + 4, offset + header + 4 + length));
+    for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
+    if (opcode === 0x1) messages.push(payload.toString("utf8"));
+    if (opcode === 0x8) close = true;
+    offset += header + 4 + length;
+  }
+  return { messages, rest: buffer.subarray(offset), close };
+}
+
+/** Acepta WebSocket solo en /ws y muestra lo que llega por él (escenario robo-websocket). */
+function handleUpgrade(handler) {
+  return function onUpgrade(req, socket) {
+    const url = new URL(req.url ?? "/", "http://lab");
+    const key = req.headers["sec-websocket-key"];
+    if (url.pathname !== "/ws" || typeof key !== "string") return socket.destroy();
+    const accept = createHash("sha1").update(key + WS_GUID).digest("base64");
+    socket.write(
+      "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+        `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
+    );
+    let pending = Buffer.alloc(0);
+    socket.on("error", () => undefined);
+    socket.on("data", (chunk) => {
+      pending = Buffer.concat([pending, chunk]);
+      if (pending.length > MAX_BODY + 16) return socket.destroy();
+      const { messages, rest, close } = readFrames(pending);
+      pending = rest;
+      for (const body of messages) {
+        if (!handler.showStolen) continue;
+        handler.show(
+          describeArrival({ host: req.headers.host ?? "", pathname: "/recibir/websocket", search: "", body })
+        );
+      }
+      if (close) socket.end(Buffer.from([0x88, 0x00]));
+    });
   };
 }
 
@@ -148,6 +222,7 @@ export async function startLab({ port = PORT, showStolen = false } = {}) {
   const servers = [];
   for (const host of ["127.0.0.1", "::1"]) {
     const server = createServer(handler);
+    server.on("upgrade", handleUpgrade(handler));
     await new Promise((resolve) => {
       server.once("error", resolve); // si el equipo no tiene IPv6, se sigue solo con IPv4
       server.listen(port, host, resolve);
@@ -161,9 +236,19 @@ export async function startLab({ port = PORT, showStolen = false } = {}) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const showStolen = !process.argv.includes("--silencioso");
   await startLab({ showStolen });
-  const scenarios = ["limpio", "robo", "robo-blob", "url", "robo-navega", "cifrado", "cifrado-robo"];
+  const scenarios = [
+    "limpio",
+    "robo",
+    "robo-blob",
+    "url",
+    "robo-navega",
+    "cifrado",
+    "cifrado-robo",
+    "robo-encabezado",
+    "robo-websocket",
+  ];
   console.log(`Laboratorio de CredFlow (contraseña ficticia: ${LAB_PASSWORD})\n`);
-  for (const s of scenarios) console.log(`  ${s.padEnd(10)} http://localhost:${PORT}/?escenario=${s}`);
+  for (const s of scenarios) console.log(`  ${s.padEnd(16)} http://localhost:${PORT}/?escenario=${s}`);
   console.log(`\n  Canal sin cifrar (requiere "127.0.0.1 tienda.lab" en el archivo hosts):`);
   console.log(`  ${"inseguro".padEnd(10)} http://tienda.lab:${PORT}/?escenario=limpio`);
   if (showStolen) {
