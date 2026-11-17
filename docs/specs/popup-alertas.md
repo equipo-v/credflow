@@ -112,6 +112,26 @@ type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 - Solo el popup (página de la extensión) escribe esta lista. Los content scripts no tienen ningún mensaje para
   modificarla, así que una página no puede marcar como de confianza el dominio al que roba.
 
+### 5.3. Grafo de flujos
+
+- Arriba de la lista, si la pestaña tiene eventos, el popup dibuja un grafo: el **sitio de la página** al centro y un
+  nodo por cada **sitio de destino**, unidos por una flecha.
+- El color de cada flecha es el del peor veredicto hacia ese destino (rojo crítica, ámbar alta, azul informativo,
+  verde normal), y la etiqueta lleva el sitio y, si hay más de uno, el número de envíos (por ejemplo, `127.0.0.1 ×2`).
+  Como en la lista, el color no es el único indicador: cada flecha lleva un símbolo (✗, !, ℹ, ✓).
+- Máximo 8 destinos, ordenados por gravedad; si hay más, un nodo «+N más».
+- Etiquetas de más de 22 caracteres se recortan con «…».
+- El SVG se construye con `createElementNS` y `textContent` (AGENTS.md, regla 3). Tiene `role="img"` y un
+  `aria-label` que resume el grafo en texto.
+- La lógica (agrupar destinos y calcular posiciones) es pura y está separada del dibujo.
+
+### 5.4. Historial (registro de auditoría)
+
+- Sección plegable **«Historial»** al final del popup con el número de eventos guardados y su rango de fechas
+  (`docs/specs/registro-auditoria.md`).
+- Botón **«Exportar JSON»**: descarga la exportación con verificación.
+- Botón **«Borrar historial»** con confirmación en dos clics («¿Confirmar?»), como «Confiar en…».
+
 ## 6. Controles de seguridad
 
 | Control | Referencia |
@@ -156,8 +176,16 @@ type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 - **CA-U17 (E2E)** Tras confiar en el dominio de métricas desde el popup, un nuevo robo a ese dominio aparece como
   "Enviada a un proveedor autorizado"; tras quitarlo, vuelve a ser "Enviada a un tercero no autorizado".
 
+- **CA-U18** La función que agrupa el grafo devuelve un destino por sitio con su peor nivel y su número de envíos,
+  ordenados por gravedad, como máximo 8 y el resto en «+N más».
+- **CA-U19** La función de posiciones coloca el centro en el medio y cada destino dentro del área del dibujo, sin
+  superponerse; recorta las etiquetas de más de 22 caracteres.
+- **CA-U20** El código del grafo no usa `innerHTML` ni APIs de HTML (lo verifica el lint) y el `aria-label` nombra cada
+  destino con su nivel.
+- **CA-U21 (E2E)** En el escenario `robo`, el popup muestra el grafo con una flecha roja hacia `127.0.0.1` y una
+  verde hacia `localhost`.
+
 ## 8. Fuera de alcance
 
-- Grafo de flujos, notificaciones del sistema y panel de administración con PIN.
+- Notificaciones del sistema y panel de administración con PIN.
 - Eventos de diagnóstico en la interfaz.
-- Persistencia de los eventos (Registro de auditoría).

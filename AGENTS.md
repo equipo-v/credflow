@@ -33,7 +33,7 @@ Con un solo agente, la separación de funciones la da la revisión humana: quien
 | Verificación técnica de `webRequest` | `lab/spike-webrequest/` | `docs/specs/motor-analisis.md`, sección 2 |
 | Contratos compartidos (tipos, validadores, huellas) | `src/shared/` | `docs/specs/motor-analisis.md`, secciones 3 y 5 |
 | Motor de análisis | `src/background/` (excepto `audit/`) | `docs/specs/motor-analisis.md` |
-| Registro de auditoría | `src/background/audit/` | Pendiente |
+| Registro de auditoría | `src/background/audit/` | `docs/specs/registro-auditoria.md` |
 | Puente de mensajes e interceptor de página | `src/content/` | Pendiente |
 | Popup y alertas | `src/popup/` | Pendiente |
 | Laboratorio de pruebas | `lab/` (excepto `spike-webrequest/`) | Pendiente |
