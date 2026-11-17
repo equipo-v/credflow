@@ -63,6 +63,14 @@ type ManagedConfig = {
 
 Si no hay configuración, `authorizedProviders` es una lista vacía.
 
+### 3.4. Destinos de confianza del usuario
+
+El usuario puede marcar desde el popup un destino como "de confianza" (`docs/specs/popup-alertas.md`, sección 6).
+Se guardan en `chrome.storage.local` con la clave `trustedSites`: una lista de hasta 100 dominios registrables. El
+Motor la lee al iniciar y en cada cambio (`chrome.storage.onChanged`, área `local`), la valida (solo nombres de host
+válidos, normalizados a eTLD+1) y la **une** a `authorizedProviders`: un destino de confianza se trata igual que un
+proveedor autorizado. No contiene datos sensibles.
+
 ## 4. Reglas
 
 ### 4.1. Validación del mensaje de registro
@@ -165,6 +173,25 @@ enviarla. Ninguna huella coincide, así que sin esta regla CredFlow no mostrarí
 - CredFlow no puede comprobar que el cifrado sea fuerte; el texto para el usuario dice que la página "cifra o
   transforma" la contraseña, no que sea segura.
 
+### 4.8. Atribución del script
+
+- El Motor guarda en memoria, por pestaña, los últimos 50 `PageReport` recibidos (`docs/specs/interceptor-pagina.md`),
+  con su hora de llegada, durante 10 s.
+- Al crear un evento a partir de la capa de red, busca un reporte de la misma pestaña con **la misma URL** recibido
+  hasta 3 s antes o después; si lo hay, el evento lleva su `script`. Si no, `script: null`.
+
+### 4.9. Evidencia de la página
+
+Para lo que la red no ve, un `PageReport` con `extra` genera su propio análisis:
+
+- Solo si la pestaña tiene huellas activas. Se buscan las huellas en `extra.text` con las mismas reglas de la
+  sección 4.3.
+- Si hay coincidencia, se clasifica con las reglas de la sección 4.4 usando la URL del reporte (sitio de la página =
+  el del remitente). La ubicación del evento es `header`, `body` (para `blob`) o `websocket`.
+- El evento lleva `evidence: "page"` y el `script` del reporte. Los eventos de la capa de red llevan
+  `evidence: "network"`.
+- Un evento de página nunca reemplaza ni elimina un evento de red.
+
 ## 5. Salida
 
 Evento emitido hacia el Registro de auditoría y el Popup:
@@ -181,7 +208,7 @@ type FlowEvent = {
   requestType: string;        // details.type
   fieldType: "password" | "card" | "custom";
   encoding: "original" | "base64" | "url" | "hex" | "reversed";
-  location: "body" | "url";
+  location: "body" | "url" | "header" | "websocket";
   truncated: boolean;
   verdict:
     | "insecure_channel"
@@ -193,6 +220,8 @@ type FlowEvent = {
     | "site_encrypted"
     | "encrypted_third_party";
   severity: "critical" | "high" | "none";
+  script: string | null;      // script que hizo la petición (sección 4.8), origen + ruta
+  evidence: "network" | "page"; // capa que produjo el evento (sección 4.9)
 };
 ```
 
@@ -245,6 +274,13 @@ Cada criterio necesita al menos una prueba (unitaria con Vitest salvo que se ind
 - **CA-22** Un JSON con `{"login": {"password": "<64 caracteres hexadecimales>"}}` produce `site_encrypted`; un campo con
   un valor corto (`password=abc`) o con un nombre que no es de contraseña (`token=<64 hex>`) no lo produce.
 - **CA-23** El evento `site_encrypted` no contiene el nombre ni el valor del campo detectado.
+
+- **CA-24** Con un destino en `trustedSites`, un envío a ese destino produce `authorized_provider` / `none`; una lista
+  con entradas inválidas (URL completas, números) las ignora.
+- **CA-25** Un evento de red lleva el `script` de un `PageReport` de la misma pestaña y URL recibido 3 s antes o después,
+  y `script: null` si no hay ninguno.
+- **CA-26** Un `PageReport` con la contraseña en `extra` (encabezado, `Blob` o WebSocket) hacia otro sitio produce un
+  evento `third_party` con `evidence: "page"` y la ubicación correspondiente; sin huellas activas no produce nada.
 
 ## 8. Fuera de alcance
 

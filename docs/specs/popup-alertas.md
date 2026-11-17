@@ -93,6 +93,25 @@ type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 - Todo el texto se inserta con `textContent`; no se usa `innerHTML` ni se cargan recursos externos. La CSP del manifiesto
   ya lo impide.
 
+### 5.1. Script y evidencia
+
+- Si el evento tiene `script`, la fila muestra una línea "Script: <nombre del archivo> (<origen>)", por ejemplo
+  "Script: analytics.js (http://localhost:8124)".
+- Si el evento tiene `evidence: "page"`, la fila agrega "Detectado en la página (encabezado / Blob / WebSocket)", para
+  distinguirlo de lo detectado en la red.
+
+### 5.2. Destinos de confianza
+
+- Las filas con veredicto `third_party`, `opaque_body` o `encrypted_third_party` tienen un botón **"Confiar en
+  <sitio de destino>"**. Al pulsarlo cambia a **"¿Confirmar?"**; un segundo clic agrega el sitio a `trustedSites` en
+  `chrome.storage.local` (`docs/specs/motor-analisis.md`, sección 3.4). Las alertas ya mostradas no se borran; los
+  envíos siguientes a ese sitio se clasifican como `authorized_provider`.
+- No se ofrece para `insecure_channel`: un canal sin cifrar sigue siendo inseguro aunque el destino sea de confianza.
+- Al final del popup, una sección plegable **"Destinos de confianza"** lista los sitios guardados, cada uno con un
+  botón **"Quitar"**.
+- Solo el popup (página de la extensión) escribe esta lista. Los content scripts no tienen ningún mensaje para
+  modificarla, así que una página no puede marcar como de confianza el dominio al que roba.
+
 ## 6. Controles de seguridad
 
 | Control | Referencia |
@@ -129,6 +148,13 @@ type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
   "La página cifra la contraseña antes de enviarla", y el ícono no cambia.
 - **CA-U14 (E2E)** En el escenario `cifrado-robo`, el popup muestra "Contraseña cifrada enviada a un tercero" y el
   ícono queda en ámbar.
+
+- **CA-U15** Una fila de un evento con `script` muestra el nombre del archivo y su origen; con `evidence: "page"`,
+  indica dónde se detectó.
+- **CA-U16** La función que decide si una fila ofrece "Confiar en…" lo hace para `third_party`, `opaque_body` y
+  `encrypted_third_party`, y no para `insecure_channel` ni para los demás.
+- **CA-U17 (E2E)** Tras confiar en el dominio de métricas desde el popup, un nuevo robo a ese dominio aparece como
+  "Enviada a un proveedor autorizado"; tras quitarlo, vuelve a ser "Enviada a un tercero no autorizado".
 
 ## 8. Fuera de alcance
 
