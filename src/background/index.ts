@@ -3,12 +3,15 @@
 import type { PageReport, TabEventsResponse } from "../shared/types";
 import {
   isExtensionPageSender,
+  parseAuditRequest,
   parseGetTabEvents,
   parsePageReport,
   parseRegisterFingerprints,
   trustedSenderTabId,
 } from "../shared/validators";
 import { analyzePageReport, analyzeRequest } from "./analyze";
+import { AuditLog } from "./audit/audit-log";
+import { IdbAuditStorage } from "./audit/idb-storage";
 import { AttributionLog, REPORT_TTL_MS } from "./page-reports";
 import { FingerprintStore } from "./fingerprint-store";
 import { ErrorMonitor } from "./error-monitor";
@@ -29,6 +32,7 @@ const store = new FingerprintStore();
 const lastPageSite = new Map<number, string>();
 const errors = new ErrorMonitor();
 const attribution = new AttributionLog();
+const audit = new AuditLog(new IdbAuditStorage());
 let config: ManagedConfig = parseManagedConfig(undefined);
 let trustedSites: ReadonlySet<string> = new Set();
 /** Proveedores autorizados por el administrador más destinos de confianza del usuario (sección 3.4). */
@@ -78,6 +82,11 @@ function applyBadge(tabId: number, summary: AlertSummary): void {
   void chrome.action.setBadgeBackgroundColor({ tabId, color: badge.color }).catch(() => undefined);
 }
 
+// Registro de auditoría cifrado (docs/specs/registro-auditoria.md). Un error al guardar no detiene el análisis.
+subscribeToFlowEvents((event) => {
+  audit.append(event).catch(() => recordError());
+});
+
 subscribeToFlowEvents((event) => {
   recordEvent(event).then(
     (summary) => applyBadge(event.tabId, summary),
@@ -119,6 +128,22 @@ function handlePageReport(tabId: number, report: PageReport, senderSite: string 
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   try {
+    // Historial de auditoría: solo páginas de la propia extensión (registro-auditoria.md, sección 7).
+    const auditRequest = parseAuditRequest(message);
+    if (auditRequest !== null) {
+      if (!isExtensionPageSender(sender, chrome.runtime.id)) return;
+      const work =
+        auditRequest.kind === "AUDIT_STATUS"
+          ? audit.status()
+          : auditRequest.kind === "AUDIT_EXPORT"
+            ? audit.exportAll()
+            : audit.clear().then(() => ({ cleared: true }));
+      work.then(sendResponse, () => {
+        recordError();
+        sendResponse(null);
+      });
+      return true;
+    }
     // Petición del popup: solo se responde a páginas de la propia extensión (popup-alertas.md, sección 4).
     const request = parseGetTabEvents(message);
     if (request !== null) {

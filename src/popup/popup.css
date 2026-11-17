@@ -184,3 +184,60 @@ button:disabled {
   align-items: center;
   margin-bottom: 4px;
 }
+
+.graph-box:empty {
+  display: none;
+}
+
+.graph {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.graph .edge {
+  stroke-width: 2;
+}
+
+.graph .critical {
+  stroke: var(--critical);
+  fill: var(--critical);
+}
+
+.graph .high {
+  stroke: var(--high);
+  fill: var(--high);
+}
+
+.graph .info {
+  stroke: var(--info);
+  fill: var(--info);
+}
+
+.graph .ok {
+  stroke: var(--ok);
+  fill: var(--ok);
+}
+
+.graph .more {
+  stroke: var(--muted);
+  fill: var(--muted);
+}
+
+.graph .label {
+  stroke: none;
+}
+
+.graph .center {
+  fill: var(--bg);
+  stroke: var(--text);
+}
+
+.graph .center-label {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.actions button + button {
+  margin-left: 6px;
+}

@@ -102,3 +102,36 @@ export type TabEventsResponse = {
   events: FlowEvent[];
   watched: WatchedField[];
 };
+
+/** Entrada del registro de auditoría (docs/specs/registro-auditoria.md, sección 2). */
+export type AuditEntry = Omit<FlowEvent, "tabId">;
+
+export type AuditProblem = "decrypt" | "gap" | "hash" | "head";
+
+/** Resultado de verificar la cadena (registro-auditoria.md, sección 5). */
+export type AuditVerification = {
+  valid: boolean;
+  problem: AuditProblem | null;
+  count: number;
+  firstSeq: number | null;
+  lastSeq: number | null;
+  /** prevHash del primer registro que queda (64 ceros si la historia está completa). */
+  anchor: string | null;
+};
+
+export type AuditRecordExport = { seq: number; prevHash: string; hash: string; entry: AuditEntry };
+
+/** Archivo exportado (registro-auditoria.md, sección 6). */
+export type AuditExport = {
+  format: "credflow-audit/1";
+  exportedAt: string;
+  algorithm: string;
+  verification: AuditVerification;
+  records: AuditRecordExport[];
+};
+
+export type AuditStatus = { count: number; oldest: string | null; newest: string | null };
+
+/** Mensajes del popup al registro de auditoría (registro-auditoria.md, sección 7). */
+export type AuditRequest =
+  { kind: "AUDIT_STATUS" } | { kind: "AUDIT_EXPORT" } | { kind: "AUDIT_CLEAR" };

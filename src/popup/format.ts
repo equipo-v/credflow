@@ -123,3 +123,22 @@ export function evidenceLabel(event: FlowEvent): string {
     ? `Detectado en la página (${EVIDENCE_PLACE[event.location]})`
     : "";
 }
+
+/** Texto del historial (sección 5.4): "3 eventos guardados desde el 17/11/2026". */
+export function historyLabel(status: { count: number; oldest: string | null }): string {
+  if (status.count === 0) return "Sin eventos guardados.";
+  const noun = status.count === 1 ? "evento guardado" : "eventos guardados";
+  const date = status.oldest ? new Date(status.oldest) : null;
+  const since =
+    date && !Number.isNaN(date.getTime())
+      ? ` desde el ${twoDigits(date.getDate())}/${twoDigits(date.getMonth() + 1)}/${date.getFullYear()}`
+      : "";
+  return `${status.count} ${noun}${since} (se conservan 30 días).`;
+}
+
+/** Nombre del archivo exportado: credflow-auditoria-AAAAMMDD-HHMMSS.json. */
+export function exportFileName(date: Date): string {
+  const d = `${date.getFullYear()}${twoDigits(date.getMonth() + 1)}${twoDigits(date.getDate())}`;
+  const t = `${twoDigits(date.getHours())}${twoDigits(date.getMinutes())}${twoDigits(date.getSeconds())}`;
+  return `credflow-auditoria-${d}-${t}.json`;
+}

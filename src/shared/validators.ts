@@ -10,6 +10,7 @@ import {
   MIN_FINGERPRINT_LENGTH,
 } from "./constants";
 import type {
+  AuditRequest,
   Encoding,
   FieldType,
   Fingerprint,
@@ -147,4 +148,14 @@ export function parsePageReport(message: unknown): PageReport | null {
     parsedExtra = { location: location as "header" | "blob" | "websocket", text };
   }
   return { kind, api: api as PageReport["api"], url, script, extra: parsedExtra };
+}
+
+const AUDIT_KINDS = ["AUDIT_STATUS", "AUDIT_EXPORT", "AUDIT_CLEAR"] as const;
+
+/** Valida un mensaje del popup al registro de auditoría (docs/specs/registro-auditoria.md, sección 7). */
+export function parseAuditRequest(message: unknown): AuditRequest | null {
+  if (!isPlainObject(message) || !hasExactKeys(message, ["kind"])) return null;
+  const { kind } = message;
+  if (typeof kind !== "string" || !(AUDIT_KINDS as readonly string[]).includes(kind)) return null;
+  return { kind: kind as AuditRequest["kind"] };
 }

@@ -1,7 +1,22 @@
 // Popup de CredFlow (docs/specs/popup-alertas.md, sección 5).
 // Todo el texto se inserta con textContent: nunca innerHTML.
-import type { GetTabEvents, TabEventsResponse } from "../shared/types";
-import { canTrust, evidenceLabel, rowFor, scriptLabel, watchedRowFor } from "./format";
+import type {
+  AuditExport,
+  AuditRequest,
+  AuditStatus,
+  GetTabEvents,
+  TabEventsResponse,
+} from "../shared/types";
+import {
+  canTrust,
+  evidenceLabel,
+  exportFileName,
+  historyLabel,
+  rowFor,
+  scriptLabel,
+  watchedRowFor,
+} from "./format";
+import { renderGraph } from "./graph-view";
 import { readTrusted, trustSite, untrustSite } from "./trust";
 
 const GENERIC_ERROR = "No se pudo cargar la información";
@@ -120,6 +135,7 @@ async function render(): Promise<void> {
       status.textContent = "Sin flujos sensibles en esta pestaña";
       return;
     }
+    renderGraph(byId("graph"), response.events);
     // Primero los campos vigilados (azul), luego los flujos detectados.
     for (const watched of response.watched) {
       const row = watchedRowFor(watched);
@@ -154,5 +170,82 @@ async function render(): Promise<void> {
   }
 }
 
+// Historial del registro de auditoría (sección 5.4).
+function auditRequest(kind: AuditRequest["kind"]): Promise<unknown> {
+  const request: AuditRequest = { kind };
+  return chrome.runtime.sendMessage(request);
+}
+
+function isStatus(value: unknown): value is AuditStatus {
+  return (
+    typeof value === "object" && value !== null && typeof (value as AuditStatus).count === "number"
+  );
+}
+
+function isExport(value: unknown): value is AuditExport {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as AuditExport).format === "credflow-audit/1" &&
+    Array.isArray((value as AuditExport).records)
+  );
+}
+
+async function renderHistory(): Promise<void> {
+  const status = byId("history-status");
+  try {
+    const response = await auditRequest("AUDIT_STATUS");
+    status.textContent = isStatus(response) ? historyLabel(response) : GENERIC_ERROR;
+  } catch {
+    status.textContent = GENERIC_ERROR;
+  }
+}
+
+function setupHistory(): void {
+  const exportButton = byId("history-export") as HTMLButtonElement;
+  exportButton.addEventListener("click", () => {
+    exportButton.disabled = true;
+    auditRequest("AUDIT_EXPORT")
+      .then((file) => {
+        if (!isExport(file)) throw new Error("audit");
+        const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = exportFileName(new Date());
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      })
+      .catch(() => {
+        byId("history-status").textContent = GENERIC_ERROR;
+      })
+      .finally(() => {
+        exportButton.disabled = false;
+      });
+  });
+
+  const clearButton = byId("history-clear") as HTMLButtonElement;
+  let armed = false;
+  clearButton.addEventListener("click", () => {
+    if (!armed) {
+      armed = true;
+      clearButton.textContent = "¿Confirmar?";
+      return;
+    }
+    armed = false;
+    clearButton.disabled = true;
+    auditRequest("AUDIT_CLEAR")
+      .then(renderHistory, () => {
+        byId("history-status").textContent = GENERIC_ERROR;
+      })
+      .finally(() => {
+        clearButton.disabled = false;
+        clearButton.textContent = "Borrar historial";
+      });
+  });
+}
+
 void render();
+setupHistory();
+void renderHistory();
 void renderTrusted();

@@ -2,7 +2,7 @@
 // Requiere la extensión compilada en dist/ (npm run test:e2e la compila antes).
 // CREDFLOW_CHROMIUM_PATH permite usar un Chromium ya instalado en lugar del que descarga Playwright.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -419,6 +419,62 @@ await check("Confiar en un destino y quitarlo desde el popup (CA-U17)", async ()
     JSON.stringify(rowsAfter)
   );
   await after.page.close();
+});
+
+await check(
+  "Grafo de flujos con flecha roja al atacante y verde a la tienda (CA-U21)",
+  async () => {
+    const { page, tabId } = await runScenario(`${TIENDA}/?escenario=robo`);
+    const popup = await context.newPage();
+    await popup.setViewportSize({ width: 380, height: 600 });
+    await popup.goto(`chrome-extension://${extensionId}/src/popup/popup.html#tabId=${tabId}`);
+    await popup.waitForSelector("#graph svg");
+    const graph = await popup.$eval("#graph svg", (svg) => ({
+      aria: svg.getAttribute("aria-label"),
+      edges: [...svg.querySelectorAll("line.edge")].map((l) => l.getAttribute("class")),
+      labels: [...svg.querySelectorAll("text.label")].map((t) => t.textContent),
+    }));
+    assert.equal(
+      graph.aria,
+      "Flujos desde localhost: 127.0.0.1, crítica, 1 envío; localhost, normal, 1 envío"
+    );
+    assert.deepEqual(graph.edges, ["edge critical", "edge ok"]);
+    assert.deepEqual(graph.labels, ["✗ 127.0.0.1", "✓ localhost"]);
+    await popup.screenshot({ path: path.join(evidence, "grafo-popup.png"), fullPage: true });
+    await popup.close();
+    await page.close();
+  }
+);
+
+await check("Historial: exportar JSON verificado y borrar (CA-A10)", async () => {
+  const { page } = await runScenario(`${TIENDA}/?escenario=robo`);
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/src/popup/popup.html#tabId=0`);
+  await popup.click("#history summary");
+  await popup.waitForFunction(() =>
+    /eventos? guardados?/.test(document.getElementById("history-status")?.textContent ?? "")
+  );
+  const [download] = await Promise.all([
+    popup.waitForEvent("download"),
+    popup.click("#history-export"),
+  ]);
+  assert.match(download.suggestedFilename(), /^credflow-auditoria-\d{8}-\d{6}\.json$/);
+  const file = JSON.parse(await readFile(await download.path(), "utf8"));
+  assert.equal(file.format, "credflow-audit/1");
+  assert.equal(file.verification.valid, true, JSON.stringify(file.verification));
+  assert.ok(file.records.some((r) => r.entry.verdict === "third_party"));
+  const text = JSON.stringify(file);
+  assert.ok(!text.includes(PASSWORD) && !text.includes(btoa(PASSWORD)), "sin la contraseña");
+  assert.ok(!text.includes("tabId"));
+  await popup.screenshot({ path: path.join(evidence, "historial-popup.png"), fullPage: true });
+  await popup.click("#history-clear");
+  assert.equal(await popup.textContent("#history-clear"), "¿Confirmar?");
+  await popup.click("#history-clear");
+  await popup.waitForFunction(
+    () => document.getElementById("history-status")?.textContent === "Sin eventos guardados."
+  );
+  await popup.close();
+  await page.close();
 });
 
 await check("La vista del atacante solo muestra la contraseña ficticia (CA-L5)", async () => {

@@ -11,6 +11,7 @@
       <p id="site" class="site"></p>
     </header>
     <p id="status" class="status" role="status"></p>
+    <div id="graph" class="graph-box"></div>
     <ol id="events" class="events" aria-label="Flujos de credenciales detectados"></ol>
     <details id="trusted" class="help">
       <summary>Destinos de confianza</summary>
@@ -18,6 +19,14 @@
         Ninguno. Usa «Confiar en…» en una alerta para agregar uno.
       </p>
       <ul id="trusted-list" class="trusted"></ul>
+    </details>
+    <details id="history" class="help">
+      <summary>Historial</summary>
+      <p id="history-status" class="status"></p>
+      <div class="actions">
+        <button id="history-export" type="button">Exportar JSON</button>
+        <button id="history-clear" type="button">Borrar historial</button>
+      </div>
     </details>
     <details class="help">
       <summary>Cómo probar CredFlow</summary>
@@ -45,6 +54,11 @@
           También revisa lo que la red no deja ver: <strong>encabezados HTTP</strong>, el contenido
           de los <code>Blob</code> y los mensajes de <strong>WebSocket</strong>. Esas alertas dicen
           «Detectado en la página», y cada alerta indica qué <strong>script</strong> hizo el envío.
+        </li>
+        <li>
+          El <strong>grafo</strong> muestra a qué sitios salieron los datos de esta pestaña, con el
+          color de la alerta más grave. En «Historial» puedes <strong>exportar</strong> los eventos
+          de los últimos 30 días (guardados cifrados, nunca con la contraseña) o borrarlos.
         </li>
         <li>
           Si un envío a otro dominio es legítimo (por ejemplo, el inicio de sesión de tu empresa),

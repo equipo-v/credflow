@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isExtensionPageSender,
+  parseAuditRequest,
   parseGetTabEvents,
   parsePageReport,
   parseRegisterFingerprints,
@@ -202,5 +203,16 @@ describe("parsePageReport (CA-I1)", () => {
     expect(
       parsePageReport({ ...valid, script: "https://x.lab/" + "a".repeat(MAX_REPORT_URL) })
     ).toBeNull();
+  });
+});
+
+describe("parseAuditRequest (CA-A8)", () => {
+  it("acepta los tres mensajes y rechaza claves adicionales o kind desconocido", () => {
+    for (const kind of ["AUDIT_STATUS", "AUDIT_EXPORT", "AUDIT_CLEAR"]) {
+      expect(parseAuditRequest({ kind })).toEqual({ kind });
+    }
+    expect(parseAuditRequest({ kind: "AUDIT_CLEAR", all: true })).toBeNull();
+    expect(parseAuditRequest({ kind: "AUDIT_DELETE" })).toBeNull();
+    expect(parseAuditRequest("AUDIT_EXPORT")).toBeNull();
   });
 });
