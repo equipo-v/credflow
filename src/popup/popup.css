@@ -9,6 +9,8 @@
   --high-bg: #fff4e5;
   --ok: #1e6b34;
   --ok-bg: #e8f5ec;
+  --info: #1a5fb4;
+  --info-bg: #e8f0fe;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +25,8 @@
     --high-bg: #3a3221;
     --ok: #81c995;
     --ok-bg: #22332a;
+    --info: #8ab4f8;
+    --info-bg: #1f2a3c;
   }
 }
 
@@ -103,6 +107,15 @@ h1 {
   color: var(--high);
 }
 
+.event.info {
+  border-left-color: var(--info);
+  background: var(--info-bg);
+}
+
+.info .severity {
+  color: var(--info);
+}
+
 .ok .severity {
   color: var(--ok);
 }
@@ -111,4 +124,120 @@ h1 {
   margin-top: 2px;
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.help {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.help summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.help ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.help li {
+  margin-bottom: 6px;
+}
+
+.help code {
+  font-size: 12px;
+}
+
+.actions {
+  margin-top: 6px;
+}
+
+button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.trusted {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.trusted li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.graph-box:empty {
+  display: none;
+}
+
+.graph {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.graph .edge {
+  stroke-width: 2;
+}
+
+.graph .critical {
+  stroke: var(--critical);
+  fill: var(--critical);
+}
+
+.graph .high {
+  stroke: var(--high);
+  fill: var(--high);
+}
+
+.graph .info {
+  stroke: var(--info);
+  fill: var(--info);
+}
+
+.graph .ok {
+  stroke: var(--ok);
+  fill: var(--ok);
+}
+
+.graph .more {
+  stroke: var(--muted);
+  fill: var(--muted);
+}
+
+.graph .label {
+  stroke: none;
+}
+
+.graph .center {
+  fill: var(--bg);
+  stroke: var(--text);
+}
+
+.graph .center-label {
+  fill: var(--text);
+  font-weight: 600;
+}
+
+.actions button + button {
+  margin-left: 6px;
 }

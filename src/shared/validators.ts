@@ -5,9 +5,19 @@ import {
   FIELD_TYPES,
   MAX_FINGERPRINT_LENGTH,
   MAX_FINGERPRINTS,
+  MAX_REPORT_TEXT,
+  MAX_REPORT_URL,
   MIN_FINGERPRINT_LENGTH,
 } from "./constants";
-import type { Encoding, FieldType, Fingerprint, GetTabEvents, RegisterFingerprints } from "./types";
+import type {
+  AuditRequest,
+  Encoding,
+  FieldType,
+  Fingerprint,
+  GetTabEvents,
+  PageReport,
+  RegisterFingerprints,
+} from "./types";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -94,4 +104,58 @@ export function isExtensionPageSender(
 ): boolean {
   if (sender.id !== extensionId || typeof sender.url !== "string") return false;
   return sender.url.startsWith(`chrome-extension://${extensionId}/`);
+}
+
+const REPORT_APIS = ["fetch", "xhr", "beacon", "websocket"] as const;
+const REPORT_LOCATIONS = ["header", "blob", "websocket"] as const;
+const REPORT_SCHEMES = new Set(["http:", "https:", "ws:", "wss:"]);
+
+function isReportUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_REPORT_URL)
+    return false;
+  try {
+    return REPORT_SCHEMES.has(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** Valida un PageReport del interceptor (docs/specs/interceptor-pagina.md, sección 6). */
+export function parsePageReport(message: unknown): PageReport | null {
+  if (
+    !isPlainObject(message) ||
+    !hasExactKeys(message, ["kind", "api", "url", "script", "extra"])
+  ) {
+    return null;
+  }
+  const { kind, api, url, script, extra } = message;
+  if (kind !== "PAGE_REPORT") return null;
+  if (typeof api !== "string" || !(REPORT_APIS as readonly string[]).includes(api)) return null;
+  if (!isReportUrl(url)) return null;
+  if (script !== null && (typeof script !== "string" || script.length > MAX_REPORT_URL))
+    return null;
+  let parsedExtra: PageReport["extra"] = null;
+  if (extra !== null) {
+    if (!isPlainObject(extra) || !hasExactKeys(extra, ["location", "text"])) return null;
+    const { location, text } = extra;
+    if (
+      typeof location !== "string" ||
+      !(REPORT_LOCATIONS as readonly string[]).includes(location)
+    ) {
+      return null;
+    }
+    if (typeof text !== "string" || text.length > MAX_REPORT_TEXT) return null;
+    parsedExtra = { location: location as "header" | "blob" | "websocket", text };
+  }
+  return { kind, api: api as PageReport["api"], url, script, extra: parsedExtra };
+}
+
+const AUDIT_KINDS = ["AUDIT_STATUS", "AUDIT_EXPORT", "AUDIT_CLEAR"] as const;
+
+/** Valida un mensaje del popup al registro de auditoría (docs/specs/registro-auditoria.md, sección 7). */
+export function parseAuditRequest(message: unknown): AuditRequest | null {
+  if (!isPlainObject(message) || !hasExactKeys(message, ["kind"])) return null;
+  const { kind } = message;
+  if (typeof kind !== "string" || !(AUDIT_KINDS as readonly string[]).includes(kind)) return null;
+  return { kind: kind as AuditRequest["kind"] };
 }

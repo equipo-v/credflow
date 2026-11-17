@@ -15,11 +15,17 @@ demo; el grafo de flujos, las notificaciones del sistema y el panel de administr
 
 ## 2. Eventos por pestaña (Service Worker)
 
-- `src/background/tab-events.ts` se suscribe a `subscribeToFlowEvents` y guarda en memoria, por pestaña, los
-  **últimos 50** `FlowEvent`. Al llegar al límite descarta el más antiguo.
-- Solo guarda `FlowEvent`, que por contrato no contiene valores, huellas, rutas ni consultas.
-- Los eventos de una pestaña se borran cuando la pestaña se cierra. Si el Service Worker se reinicia, se pierden: la
-  persistencia es tarea del Registro de auditoría.
+- `src/background/tab-events.ts` se suscribe a `subscribeToFlowEvents` y guarda, por pestaña, los **últimos 50**
+  `FlowEvent` y el resumen de alertas (número de alertas y si hubo alguna crítica). Al llegar al límite descarta el
+  evento más antiguo; el resumen no se reduce.
+- Los guarda en **`chrome.storage.session`** (clave `tab:<tabId>`), además de en memoria, para que **sobrevivan a los
+  reinicios del Service Worker**: Chrome lo detiene tras unos 30 s sin actividad. `storage.session` vive en la memoria
+  del navegador, no se escribe en disco, se borra al cerrar Chrome y, con su nivel de acceso predeterminado, los
+  content scripts no pueden leerlo. Solo contiene `FlowEvent`, que por contrato no tiene valores, huellas, rutas ni
+  consultas, así que cumple la regla 1 de `AGENTS.md`.
+- Lo leído de `storage.session` se valida antes de usarse; si no es válido, se descarta.
+- Los eventos de una pestaña se borran cuando la pestaña se cierra. Al cerrar Chrome se borran todos. La persistencia
+  en disco sigue siendo tarea del Registro de auditoría.
 
 ## 3. Alerta en el ícono
 
@@ -29,6 +35,9 @@ demo; el grafo de flujos, las notificaciones del sistema y el panel de administr
 - Color del fondo (`chrome.action.setBadgeBackgroundColor`): rojo `#D93025` si hay al menos un evento `critical`;
   ámbar `#E37400` si solo hay `high`.
 - Los eventos con severidad `none` (mismo sitio, proveedor autorizado) no cambian el ícono.
+- Chrome borra el texto del ícono de una pestaña cuando esta navega a otra página. Por eso el ícono **se vuelve a
+  aplicar** desde el resumen guardado cada vez que la pestaña termina de cargar (`chrome.tabs.onUpdated` con
+  `status: "complete"`). Ese evento no requiere el permiso `tabs`, porque solo se usan el `tabId` y el estado.
 
 ## 4. Contrato entre el popup y el Service Worker
 
@@ -36,7 +45,8 @@ Nuevo contrato en `src/shared/types.ts`:
 
 ```ts
 type GetTabEvents = { kind: "GET_TAB_EVENTS"; tabId: number };
-type TabEventsResponse = { events: FlowEvent[] };
+type WatchedField = { fieldType: FieldType; site: string; since: string };
+type TabEventsResponse = { events: FlowEvent[]; watched: WatchedField[] };
 ```
 
 - El popup averigua la pestaña activa con `chrome.tabs.query({ active: true, currentWindow: true })`. Esta llamada no
@@ -66,11 +76,61 @@ type TabEventsResponse = { events: FlowEvent[] };
 | `credential_in_url` | Credencial en la URL | ! alta (ámbar) |
 | `authorized_provider` | Enviada a un proveedor autorizado | ✓ normal (verde) |
 | `same_site` | Enviada al mismo sitio | ✓ normal (verde) |
+| `site_encrypted` | La página cifra la contraseña antes de enviarla · CredFlow no puede ver su contenido | ℹ informativo (azul) |
+| `encrypted_third_party` | Contraseña cifrada enviada a un tercero | ! alta (ámbar) |
 
-- Sin eventos: el texto "Sin flujos sensibles en esta pestaña".
+- **Campos vigilados:** cuando el Motor recibe huellas de una pestaña, registra en el estado de la pestaña el tipo de
+  campo, el sitio (eTLD+1 de `sender.url`, que pone Chrome) y la hora del primer registro. El popup muestra arriba una
+  tarjeta azul por tipo de campo: "Contraseña ingresada en este sitio · CredFlow vigila a dónde se envía". Así el popup
+  nunca queda vacío cuando el usuario escribió una contraseña, aunque no se detecte ninguna salida. No cambia el ícono.
+- Sin eventos ni campos vigilados: el texto "Sin flujos sensibles en esta pestaña".
+- Al final, una sección plegable **"Cómo probar CredFlow"** (`<details>`), con texto fijo en el HTML, para quien pruebe
+  la extensión sin conocer el proyecto: qué campos vigila, el mínimo de 6 caracteres, qué envíos detecta, qué
+  significa cada color, cómo habilitar las páginas abiertas como archivo (`file://`), que en `localhost` el HTTP no se
+  marca como inseguro, que algunos sitios cifran la contraseña (aviso azul, o ámbar si va a otro dominio) y que
+  CredFlow detecta pero no bloquea.
 - Si la respuesta no llega o falla: el texto genérico "No se pudo cargar la información", sin detalles técnicos.
 - Todo el texto se inserta con `textContent`; no se usa `innerHTML` ni se cargan recursos externos. La CSP del manifiesto
   ya lo impide.
+
+### 5.1. Script y evidencia
+
+- Si el evento tiene `script`, la fila muestra una línea "Script: <nombre del archivo> (<origen>)", por ejemplo
+  "Script: analytics.js (http://localhost:8124)".
+- Si el evento tiene `evidence: "page"`, la fila agrega "Detectado en la página (encabezado / Blob / WebSocket)", para
+  distinguirlo de lo detectado en la red.
+
+### 5.2. Destinos de confianza
+
+- Las filas con veredicto `third_party`, `opaque_body` o `encrypted_third_party` tienen un botón **"Confiar en
+  <sitio de destino>"**. Al pulsarlo cambia a **"¿Confirmar?"**; un segundo clic agrega el sitio a `trustedSites` en
+  `chrome.storage.local` (`docs/specs/motor-analisis.md`, sección 3.4). Las alertas ya mostradas no se borran; los
+  envíos siguientes a ese sitio se clasifican como `authorized_provider`.
+- No se ofrece para `insecure_channel`: un canal sin cifrar sigue siendo inseguro aunque el destino sea de confianza.
+- Al final del popup, una sección plegable **"Destinos de confianza"** lista los sitios guardados, cada uno con un
+  botón **"Quitar"**.
+- Solo el popup (página de la extensión) escribe esta lista. Los content scripts no tienen ningún mensaje para
+  modificarla, así que una página no puede marcar como de confianza el dominio al que roba.
+
+### 5.3. Grafo de flujos
+
+- Arriba de la lista, si la pestaña tiene eventos, el popup dibuja un grafo: el **sitio de la página** al centro y un
+  nodo por cada **sitio de destino**, unidos por una flecha.
+- El color de cada flecha es el del peor veredicto hacia ese destino (rojo crítica, ámbar alta, azul informativo,
+  verde normal), y la etiqueta lleva el sitio y, si hay más de uno, el número de envíos (por ejemplo, `127.0.0.1 ×2`).
+  Como en la lista, el color no es el único indicador: cada flecha lleva un símbolo (✗, !, ℹ, ✓).
+- Máximo 8 destinos, ordenados por gravedad; si hay más, un nodo «+N más».
+- Etiquetas de más de 22 caracteres se recortan con «…».
+- El SVG se construye con `createElementNS` y `textContent` (AGENTS.md, regla 3). Tiene `role="img"` y un
+  `aria-label` que resume el grafo en texto.
+- La lógica (agrupar destinos y calcular posiciones) es pura y está separada del dibujo.
+
+### 5.4. Historial (registro de auditoría)
+
+- Sección plegable **«Historial»** al final del popup con el número de eventos guardados y su rango de fechas
+  (`docs/specs/registro-auditoria.md`).
+- Botón **«Exportar JSON»**: descarga la exportación con verificación.
+- Botón **«Borrar historial»** con confirmación en dos clics («¿Confirmar?»), como «Confiar en…».
 
 ## 6. Controles de seguridad
 
@@ -98,8 +158,34 @@ type TabEventsResponse = { events: FlowEvent[] };
 - **CA-U7** `src/popup/` no usa `innerHTML`, `outerHTML`, `insertAdjacentHTML` ni `document.write` (lo comprueba
   `npm run lint`), y una prueba verifica que `popup.html` no carga scripts ni estilos de otro origen.
 
+- **CA-U8 (E2E)** Si el Service Worker se detiene después de detectar un robo, el popup sigue mostrando el evento.
+- **CA-U9 (E2E)** Tras un robo seguido de una navegación de la pestaña a otra página, el ícono sigue mostrando la alerta.
+- **CA-U10** `popup.html` contiene la sección "Cómo probar CredFlow" con el mínimo de 6 caracteres y la instrucción
+  para habilitar `file://`.
+- **CA-U11** El validador de lo leído de `storage.session` descarta datos con forma incorrecta.
+- **CA-U12** `rowFor` produce los textos de `site_encrypted` (informativo, azul) y `encrypted_third_party` (alta).
+- **CA-U13 (E2E)** En el escenario `cifrado` del laboratorio, el popup muestra "Contraseña ingresada en este sitio" y
+  "La página cifra la contraseña antes de enviarla", y el ícono no cambia.
+- **CA-U14 (E2E)** En el escenario `cifrado-robo`, el popup muestra "Contraseña cifrada enviada a un tercero" y el
+  ícono queda en ámbar.
+
+- **CA-U15** Una fila de un evento con `script` muestra el nombre del archivo y su origen; con `evidence: "page"`,
+  indica dónde se detectó.
+- **CA-U16** La función que decide si una fila ofrece "Confiar en…" lo hace para `third_party`, `opaque_body` y
+  `encrypted_third_party`, y no para `insecure_channel` ni para los demás.
+- **CA-U17 (E2E)** Tras confiar en el dominio de métricas desde el popup, un nuevo robo a ese dominio aparece como
+  "Enviada a un proveedor autorizado"; tras quitarlo, vuelve a ser "Enviada a un tercero no autorizado".
+
+- **CA-U18** La función que agrupa el grafo devuelve un destino por sitio con su peor nivel y su número de envíos,
+  ordenados por gravedad, como máximo 8 y el resto en «+N más».
+- **CA-U19** La función de posiciones coloca el centro en el medio y cada destino dentro del área del dibujo, sin
+  superponerse; recorta las etiquetas de más de 22 caracteres.
+- **CA-U20** El código del grafo no usa `innerHTML` ni APIs de HTML (lo verifica el lint) y el `aria-label` nombra cada
+  destino con su nivel.
+- **CA-U21 (E2E)** En el escenario `robo`, el popup muestra el grafo con una flecha roja hacia `127.0.0.1` y una
+  verde hacia `localhost`.
+
 ## 8. Fuera de alcance
 
-- Grafo de flujos, notificaciones del sistema y panel de administración con PIN.
+- Notificaciones del sistema y panel de administración con PIN.
 - Eventos de diagnóstico en la interfaz.
-- Persistencia de los eventos (Registro de auditoría).

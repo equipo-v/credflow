@@ -1,7 +1,15 @@
 // Búsqueda de huellas y clasificación de una petición (secciones 4.3, 4.4 y 4.5).
 // Lógica pura: no usa APIs de Chrome, para poder probarla con Vitest.
-import type { Encoding, FieldType, FlowEvent, Severity, Verdict } from "../shared/types";
+import type {
+  Encoding,
+  FieldType,
+  FlowEvent,
+  PageReport,
+  Severity,
+  Verdict,
+} from "../shared/types";
 import type { ActiveFingerprint } from "./fingerprint-store";
+import { bodyFields, hasEncryptedPassword } from "./encrypted-field";
 import { readRequestBody, type RequestBodyLike } from "./request-body";
 import { isLoopbackHost, siteOfUrl } from "./site";
 
@@ -22,6 +30,8 @@ export type AnalysisContext = {
   lastKnownPageSite: string | null;
   now: Date;
   newId: () => string;
+  /** Script atribuido a una URL por el interceptor de página (sección 4.8), si lo hay. */
+  scriptFor?: (url: string) => string | null;
 };
 
 type Match = { fieldType: FieldType; encoding: Encoding; location: "body" | "url" };
@@ -75,7 +85,10 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     ? { fieldType: found.fieldType, encoding: found.encoding, location: bodyMatch ? "body" : "url" }
     : null;
 
-  if (!match && !body.opaque) return null;
+  // Sin coincidencia: puede que la propia página cifre la contraseña antes de enviarla (sección 4.7).
+  const encrypted =
+    !match && !body.opaque && hasEncryptedPassword(bodyFields(request.requestBody, body.text));
+  if (!match && !body.opaque && !encrypted) return null;
 
   const destinationSite = siteOfUrl(request.url) ?? destination.host;
   // Sin sitio de página conocido, ningún destino se considera "mismo sitio".
@@ -92,6 +105,10 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     else if (match.location === "url") [verdict, severity] = ["credential_in_url", "high"];
     else if (authorized) [verdict, severity] = ["authorized_provider", "none"];
     else [verdict, severity] = ["same_site", "none"];
+  } else if (encrypted) {
+    // Contraseña cifrada por la página (sección 4.7): informativo, salvo que vaya a un tercero.
+    if (thirdParty) [verdict, severity] = ["encrypted_third_party", "high"];
+    else [verdict, severity] = ["site_encrypted", "none"];
   } else {
     // Cuerpo opaco sin coincidencia (sección 4.5).
     if (insecure) [verdict, severity] = ["insecure_channel", "critical"];
@@ -99,7 +116,7 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     else return null;
   }
 
-  // Con el cuerpo opaco no se sabe qué campo salió: se reporta el del registro más reciente disponible.
+  // Con el cuerpo opaco o cifrado no se sabe qué campo salió: se reporta el del registro más reciente disponible.
   const fieldType = match?.fieldType ?? ctx.fingerprints[0]?.fieldType ?? "custom";
 
   return {
@@ -117,5 +134,73 @@ export function analyzeRequest(request: RequestInfo, ctx: AnalysisContext): Flow
     truncated: body.truncated,
     verdict,
     severity,
+    script: ctx.scriptFor?.(request.url) ?? null,
+    evidence: "network",
+  };
+}
+
+const PAGE_LOCATION: Record<NonNullable<PageReport["extra"]>["location"], FlowEvent["location"]> = {
+  header: "header",
+  blob: "body",
+  websocket: "websocket",
+};
+
+export type PageContext = {
+  fingerprints: ActiveFingerprint[];
+  authorizedSites: ReadonlySet<string>;
+  /** Sitio de la página que envió el reporte, tomado del remitente (sender.url), nunca de la página. */
+  pageSite: string | null;
+  now: Date;
+  newId: () => string;
+};
+
+/**
+ * Evidencia de la página (sección 4.9): busca las huellas en el contenido que la red no ve (encabezados, Blob o
+ * WebSocket) y clasifica con las reglas de la sección 4.4. El contenido se descarta: el evento no lo incluye.
+ */
+export function analyzePageReport(
+  tabId: number,
+  report: PageReport,
+  ctx: PageContext
+): FlowEvent | null {
+  if (!report.extra || ctx.fingerprints.length === 0) return null;
+  const found = findIn(report.extra.text, ctx.fingerprints);
+  if (!found) return null;
+
+  let destination: URL;
+  try {
+    destination = new URL(report.url);
+  } catch {
+    return null;
+  }
+  const destinationSite = siteOfUrl(report.url) ?? destination.host;
+  const pageSite = ctx.pageSite ?? "";
+  const authorized = ctx.authorizedSites.has(destinationSite);
+
+  let verdict: Verdict;
+  let severity: Severity;
+  if (isInsecureChannel(destination)) [verdict, severity] = ["insecure_channel", "critical"];
+  else if (destinationSite !== pageSite && !authorized)
+    [verdict, severity] = ["third_party", "critical"];
+  else if (authorized) [verdict, severity] = ["authorized_provider", "none"];
+  else [verdict, severity] = ["same_site", "none"];
+
+  return {
+    id: ctx.newId(),
+    timestamp: ctx.now.toISOString(),
+    tabId,
+    pageSite,
+    destinationOrigin: destination.origin,
+    destinationSite,
+    method: report.api === "websocket" ? "WEBSOCKET" : "-",
+    requestType: report.api,
+    fieldType: found.fieldType,
+    encoding: found.encoding,
+    location: PAGE_LOCATION[report.extra.location],
+    truncated: false,
+    verdict,
+    severity,
+    script: report.script,
+    evidence: "page",
   };
 }

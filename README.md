@@ -63,7 +63,7 @@ npm run lab            # inicia la tienda de laboratorio en http://localhost:812
 4. Para ver el robo desde el lado del atacante, mira la terminal de `npm run lab` o abre el panel del atacante en
    `http://127.0.0.1:8124/panel`. Solo se muestra la contraseña ficticia; cualquier otro valor aparece oculto.
 
-Escenarios: `limpio`, `robo`, `robo-blob` y `url` (`docs/specs/laboratorio.md`).
+Escenarios: `limpio`, `robo`, `robo-blob`, `url` y `robo-navega` (con redirección, como un sitio real) (`docs/specs/laboratorio.md`).
 
 Pruebas automáticas de la demo, con capturas en `test-results/demo/`:
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRegisterMessage, fieldTypeOf } from "../../../src/content/fields";
+import { buildRegisterMessage, fieldTypeOf, shouldRefresh } from "../../../src/content/fields";
 import { parseRegisterFingerprints } from "../../../src/shared/validators";
 
 describe("fieldTypeOf (CA-P1)", () => {
@@ -31,5 +31,16 @@ describe("buildRegisterMessage (CA-P2)", () => {
   it("devuelve null con menos de 6 caracteres", () => {
     expect(buildRegisterMessage("password", "abc12")).toBeNull();
     expect(buildRegisterMessage("password", "")).toBeNull();
+  });
+});
+
+describe("shouldRefresh (CA-P9)", () => {
+  it("solo con escritura real y más de 10 s desde el último envío", () => {
+    expect(shouldRefresh({ typed: false, lastSentAt: null }, 100_000)).toBe(false);
+    expect(shouldRefresh({ typed: false, lastSentAt: 0 }, 100_000)).toBe(false);
+    expect(shouldRefresh({ typed: true, lastSentAt: null }, 100_000)).toBe(true);
+    expect(shouldRefresh({ typed: true, lastSentAt: 95_000 }, 100_000)).toBe(false);
+    expect(shouldRefresh({ typed: true, lastSentAt: 90_000 }, 100_000)).toBe(false);
+    expect(shouldRefresh({ typed: true, lastSentAt: 89_999 }, 100_000)).toBe(true);
   });
 });

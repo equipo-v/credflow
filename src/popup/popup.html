@@ -11,7 +11,79 @@
       <p id="site" class="site"></p>
     </header>
     <p id="status" class="status" role="status"></p>
+    <div id="graph" class="graph-box"></div>
     <ol id="events" class="events" aria-label="Flujos de credenciales detectados"></ol>
+    <details id="trusted" class="help">
+      <summary>Destinos de confianza</summary>
+      <p id="trusted-empty" class="status">
+        Ninguno. Usa «Confiar en…» en una alerta para agregar uno.
+      </p>
+      <ul id="trusted-list" class="trusted"></ul>
+    </details>
+    <details id="history" class="help">
+      <summary>Historial</summary>
+      <p id="history-status" class="status"></p>
+      <div class="actions">
+        <button id="history-export" type="button">Exportar JSON</button>
+        <button id="history-clear" type="button">Borrar historial</button>
+      </div>
+    </details>
+    <details class="help">
+      <summary>Cómo probar CredFlow</summary>
+      <ul>
+        <li>
+          Vigila los campos de <strong>contraseña</strong> (<code>type="password"</code>) y de
+          <strong>tarjeta</strong> (<code>autocomplete="cc-number"</code> o <code>"cc-csc"</code>).
+        </li>
+        <li>
+          Usa contraseñas de <strong>al menos 6 caracteres</strong>: con menos no se analizan.
+        </li>
+        <li>
+          Algunos sitios (como Facebook, Instagram o los bancos)
+          <strong>cifran la contraseña</strong> antes de enviarla: CredFlow lo indica en
+          <strong>azul</strong>, porque no puede ver su contenido. Si ese valor cifrado va a otro
+          dominio, el aviso es <strong>ámbar</strong>.
+        </li>
+        <li>
+          Alerta cuando la contraseña sale <strong>hacia otro dominio</strong>, por
+          <strong>HTTP sin cifrar</strong>, <strong>dentro de la URL</strong> o en un envío que
+          Chrome no deja inspeccionar (<code>Blob</code>), también si va codificada (Base64, URL,
+          hexadecimal o invertida).
+        </li>
+        <li>
+          También revisa lo que la red no deja ver: <strong>encabezados HTTP</strong>, el contenido
+          de los <code>Blob</code> y los mensajes de <strong>WebSocket</strong>. Esas alertas dicen
+          «Detectado en la página», y cada alerta indica qué <strong>script</strong> hizo el envío.
+        </li>
+        <li>
+          El <strong>grafo</strong> muestra a qué sitios salieron los datos de esta pestaña, con el
+          color de la alerta más grave. En «Historial» puedes <strong>exportar</strong> los eventos
+          de los últimos 30 días (guardados cifrados, nunca con la contraseña) o borrarlos.
+        </li>
+        <li>
+          Si un envío a otro dominio es legítimo (por ejemplo, el inicio de sesión de tu empresa),
+          usa <strong>«Confiar en…»</strong> en la alerta. Puedes quitarlo en «Destinos de
+          confianza».
+        </li>
+        <li>
+          Colores: <strong>✗ rojo</strong> crítica, <strong>! ámbar</strong> alta,
+          <strong>✓ verde</strong> envío normal al mismo sitio.
+        </li>
+        <li>
+          Páginas abiertas como archivo (<code>file://</code>): en
+          <code>chrome://extensions</code> → CredFlow → Detalles, activa «Permitir el acceso a las
+          URL del archivo».
+        </li>
+        <li>
+          En <code>localhost</code> y <code>127.0.0.1</code> el HTTP no se marca como inseguro: no
+          sale del equipo.
+        </li>
+        <li>
+          CredFlow <strong>detecta y avisa, pero no bloquea</strong>. Un bloqueador de anuncios
+          puede impedir que el envío llegue a su destino; CredFlow igual lo detecta.
+        </li>
+      </ul>
+    </details>
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

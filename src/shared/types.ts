@@ -26,7 +26,9 @@ export type Verdict =
   | "opaque_body"
   | "credential_in_url"
   | "authorized_provider"
-  | "same_site";
+  | "same_site"
+  | "site_encrypted"
+  | "encrypted_third_party";
 
 export type Severity = "critical" | "high" | "none";
 
@@ -50,10 +52,23 @@ export type FlowEvent = {
   fieldType: FieldType;
   /** null solo en opaque_body. */
   encoding: Encoding | null;
-  location: "body" | "url";
+  location: "body" | "url" | "header" | "websocket";
   truncated: boolean;
   verdict: Verdict;
   severity: Severity;
+  /** Script que hizo la petición, origen + ruta (sección 4.8), o null si no se sabe. */
+  script: string | null;
+  /** Capa que produjo el evento: la red (autoritativa) o la página (orientativa, sección 4.9). */
+  evidence: "network" | "page";
+};
+
+/** Reporte del interceptor de página (docs/specs/interceptor-pagina.md, sección 6). */
+export type PageReport = {
+  kind: "PAGE_REPORT";
+  api: "fetch" | "xhr" | "beacon" | "websocket";
+  url: string;
+  script: string | null;
+  extra: { location: "header" | "blob" | "websocket"; text: string } | null;
 };
 
 /**
@@ -74,6 +89,49 @@ export type GetTabEvents = {
   tabId: number;
 };
 
+/** Campo sensible en el que el usuario escribió en una pestaña (docs/specs/popup-alertas.md, sección 5). */
+export type WatchedField = {
+  fieldType: FieldType;
+  /** eTLD+1 de la página donde se escribió. */
+  site: string;
+  /** ISO 8601 en UTC del primer registro. */
+  since: string;
+};
+
 export type TabEventsResponse = {
   events: FlowEvent[];
+  watched: WatchedField[];
 };
+
+/** Entrada del registro de auditoría (docs/specs/registro-auditoria.md, sección 2). */
+export type AuditEntry = Omit<FlowEvent, "tabId">;
+
+export type AuditProblem = "decrypt" | "gap" | "hash" | "head";
+
+/** Resultado de verificar la cadena (registro-auditoria.md, sección 5). */
+export type AuditVerification = {
+  valid: boolean;
+  problem: AuditProblem | null;
+  count: number;
+  firstSeq: number | null;
+  lastSeq: number | null;
+  /** prevHash del primer registro que queda (64 ceros si la historia está completa). */
+  anchor: string | null;
+};
+
+export type AuditRecordExport = { seq: number; prevHash: string; hash: string; entry: AuditEntry };
+
+/** Archivo exportado (registro-auditoria.md, sección 6). */
+export type AuditExport = {
+  format: "credflow-audit/1";
+  exportedAt: string;
+  algorithm: string;
+  verification: AuditVerification;
+  records: AuditRecordExport[];
+};
+
+export type AuditStatus = { count: number; oldest: string | null; newest: string | null };
+
+/** Mensajes del popup al registro de auditoría (registro-auditoria.md, sección 7). */
+export type AuditRequest =
+  { kind: "AUDIT_STATUS" } | { kind: "AUDIT_EXPORT" } | { kind: "AUDIT_CLEAR" };
